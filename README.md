@@ -19,6 +19,18 @@ npm run build
 O conteúdo de `dist/` é o site pronto — pode ser enviado para qualquer
 hospedagem estática (HostGator, Hostinger, GitHub Pages).
 
+**No ar:** https://pablorieger.github.io/proposta-gorie-studio/
+
+Este repositório usa duas branches:
+
+| Branch | Conteúdo |
+| --- | --- |
+| `main` | código-fonte |
+| `master` | o conteúdo de `dist/` na raiz — é daqui que o GitHub Pages publica |
+
+Para republicar depois de um `npm run build`, envie os arquivos de `dist/`
+para a raiz da branch `master`.
+
 ## Onde editar
 
 | O quê | Arquivo |
