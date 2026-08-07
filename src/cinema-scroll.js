@@ -214,19 +214,42 @@ export function initCinemaScroll() {
   let lastAppliedTime = -1;
 
   // O vídeo é 30fps: um frame dura ~0.033s. Buscar mais fino que isso não
-  // revela nenhum frame novo — só força o decoder a repetir trabalho. Meio
-  // frame de folga corta boa parte dos seeks num scroll rápido sem perder
-  // nitidez nenhuma, já que a fonte não tem frames pra mostrar entre eles.
+  // revela nenhum frame novo — só força o decoder a repetir trabalho.
   const SEEK_EPSILON = 1 / 60;
 
-  function applyTime() {
-    if (disposed) return;
+  // O epsilon acima só ajuda quando a posição quase não muda de um tick pro
+  // outro (rolagem devagar ou freando). Num scroll RÁPIDO a posição salta
+  // bastante a cada tick, então ele nunca barra nada — e é justo aí, sob
+  // rolagem rápida, que o decodificador de vídeo de um celular mais fraco
+  // sofre: buscar (seek) é bem mais caro que decodificar em sequência, e
+  // pedir isso 60x/s pode empilhar mais rápido do que o hardware entrega.
+  // Este teto por tempo limita a TAXA de busca real, não só a distância —
+  // e a borda de saída (trailing edge) garante que a última posição pedida
+  // sempre acaba sendo aplicada, mesmo que o scroll pare no meio do intervalo.
+  const MIN_SEEK_INTERVAL_MS = 40; // ~25 buscas/s no máximo
+  let lastSeekAt = 0;
+  let pendingSeekTimer = null;
+
+  function commitSeek() {
+    pendingSeekTimer = null;
     const t = state.time;
     if (Math.abs(t - lastAppliedTime) < SEEK_EPSILON) return;
     lastAppliedTime = t;
+    lastSeekAt = performance.now();
     if (video.readyState >= 1) {
       video.currentTime = t;
       scheduleDraw();
+    }
+  }
+
+  function applyTime() {
+    if (disposed) return;
+    const elapsed = performance.now() - lastSeekAt;
+    if (elapsed >= MIN_SEEK_INTERVAL_MS) {
+      if (pendingSeekTimer) clearTimeout(pendingSeekTimer);
+      commitSeek();
+    } else if (!pendingSeekTimer) {
+      pendingSeekTimer = setTimeout(commitSeek, MIN_SEEK_INTERVAL_MS - elapsed);
     }
   }
 
@@ -356,6 +379,7 @@ export function initCinemaScroll() {
     video.removeEventListener("loadedmetadata", onLoadedMetadata);
     video.removeEventListener("seeked", onSeeked);
     if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    if (pendingSeekTimer) clearTimeout(pendingSeekTimer);
     cancelPending();
     if (scrollTrigger) scrollTrigger.kill();
     if (textTimeline) textTimeline.kill();
