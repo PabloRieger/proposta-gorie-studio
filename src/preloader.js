@@ -1,9 +1,12 @@
-const MIN_VISIBLE_MS = 1500;
-const MAX_WAIT_MS = 9000;
+// Teto de segurança: se a rede estiver muito ruim, entra assim mesmo em vez
+// de prender o visitante. O canvas já sabe desenhar com o vídeo parcial.
+const MAX_WAIT_MS = 16000;
+// Rede se o evento "ended" não disparar (acontece em alguns navegadores).
+const ENDED_FALLBACK_MS = 900;
 
 /**
- * Segura a página com a animação da marca até o vídeo da experiência ter
- * dados suficientes para o scrub. Resolve sempre — nunca prende o visitante.
+ * Segura a página até a animação da marca terminar por completo E o vídeo da
+ * experiência ter dados suficientes para o scrub. Resolve sempre.
  */
 export function runPreloader(cinemaVideo) {
   const root = document.querySelector("[data-preloader]");
@@ -19,24 +22,40 @@ export function runPreloader(cinemaVideo) {
   logo?.play().catch(() => {});
 
   return new Promise((resolve) => {
-    const startedAt = performance.now();
     let finished = false;
+    let logoDone = !logo;
+    let videoDone = false;
+    let endedTimer = null;
 
-    const progress = () => {
-      if (!bar) return;
+    const logoRatio = () => {
+      if (logoDone) return 1;
+      if (!logo?.duration) return 0;
+      return Math.min(1, logo.currentTime / logo.duration);
+    };
+
+    const videoRatio = () => {
+      if (videoDone) return 1;
       let ratio = cinemaVideo.readyState / 4;
       if (cinemaVideo.buffered.length && cinemaVideo.duration) {
         ratio = Math.max(ratio, cinemaVideo.buffered.end(0) / cinemaVideo.duration);
       }
-      const elapsed = (performance.now() - startedAt) / MIN_VISIBLE_MS;
-      bar.style.width = `${Math.min(100, Math.max(ratio, elapsed) * 100)}%`;
+      return Math.min(1, ratio);
+    };
+
+    // Só chega a 100% quando as duas frentes terminam — por isso o menor dos dois.
+    const progress = () => {
+      if (bar) bar.style.width = `${Math.min(logoRatio(), videoRatio()) * 100}%`;
     };
 
     const finish = () => {
       if (finished) return;
       finished = true;
       clearInterval(ticker);
-      cinemaVideo.removeEventListener("canplaythrough", ready);
+      clearTimeout(endedTimer);
+      clearTimeout(ceiling);
+      cinemaVideo.removeEventListener("canplaythrough", onVideoReady);
+      logo?.removeEventListener("ended", onLogoEnded);
+      logo?.removeEventListener("timeupdate", watchLogoTail);
 
       if (bar) bar.style.width = "100%";
       root.classList.add("is-done");
@@ -54,16 +73,39 @@ export function runPreloader(cinemaVideo) {
       resolve();
     };
 
-    const ready = () => {
-      const remaining = MIN_VISIBLE_MS - (performance.now() - startedAt);
-      setTimeout(finish, Math.max(0, remaining));
+    const maybeFinish = () => {
+      if (logoDone && videoDone) finish();
+    };
+
+    const onLogoEnded = () => {
+      logoDone = true;
+      maybeFinish();
+    };
+
+    // Alguns navegadores não disparam "ended" com o vídeo em loop de decode;
+    // ao chegar no fim, agenda o fallback.
+    const watchLogoTail = () => {
+      if (!logo.duration || endedTimer) return;
+      if (logo.duration - logo.currentTime < 0.25) {
+        endedTimer = setTimeout(onLogoEnded, ENDED_FALLBACK_MS);
+      }
+    };
+
+    const onVideoReady = () => {
+      videoDone = true;
+      maybeFinish();
     };
 
     const ticker = setInterval(progress, 120);
 
-    if (cinemaVideo.readyState >= 3) ready();
-    else cinemaVideo.addEventListener("canplaythrough", ready);
+    if (logo) {
+      logo.addEventListener("ended", onLogoEnded, { once: true });
+      logo.addEventListener("timeupdate", watchLogoTail);
+    }
 
-    setTimeout(finish, MAX_WAIT_MS);
+    if (cinemaVideo.readyState >= 3) onVideoReady();
+    else cinemaVideo.addEventListener("canplaythrough", onVideoReady);
+
+    const ceiling = setTimeout(finish, MAX_WAIT_MS);
   });
 }
