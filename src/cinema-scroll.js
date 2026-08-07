@@ -42,48 +42,14 @@ export function initCinemaScroll() {
   let rvfcHandle = null;
 
   // ---------------------------------------------------------------- canvas
-  let fit = { dx: 0, dy: 0, dw: 0, dh: 0, needsAmbient: false };
+  let fit = { dx: 0, dy: 0, dw: 0, dh: 0, featherX: 0, featherY: 0, needsAmbient: false };
 
   // Canvas minúsculo: ampliá-lo produz o desfoque do fundo praticamente de
   // graça, sem custo de ctx.filter a cada frame.
   const ambient = document.createElement("canvas");
   const ambientCtx = ambient.getContext("2d", { alpha: false });
 
-  // Frame nítido com as bordas esmaecidas, para a emenda com o fundo sumir.
-  // A máscara é remontada só no resize.
-  const framed = document.createElement("canvas");
-  const framedCtx = framed.getContext("2d");
-  const mask = document.createElement("canvas");
-
-  // Opaca no miolo, desaparecendo rumo às bordas: usada com destination-in
-  // para o frame nítido perder alfa exatamente onde encosta no fundo.
-  function buildMask(dw, dh, fadeX, fadeY) {
-    mask.width = dw;
-    mask.height = dh;
-    const m = mask.getContext("2d");
-    m.clearRect(0, 0, dw, dh);
-    m.fillStyle = "#000";
-    m.fillRect(0, 0, dw, dh);
-
-    // Apaga progressivamente da borda para dentro.
-    m.globalCompositeOperation = "destination-out";
-    const band = (x, y, w, h, x0, y0, x1, y1) => {
-      const g = m.createLinearGradient(x0, y0, x1, y1);
-      g.addColorStop(0, "rgba(0,0,0,1)");
-      g.addColorStop(1, "rgba(0,0,0,0)");
-      m.fillStyle = g;
-      m.fillRect(x, y, w, h);
-    };
-
-    if (fadeY > 0) {
-      band(0, 0, dw, fadeY, 0, 0, 0, fadeY);
-      band(0, dh - fadeY, dw, fadeY, 0, dh, 0, dh - fadeY);
-    }
-    if (fadeX > 0) {
-      band(0, 0, fadeX, dh, 0, 0, fadeX, 0);
-      band(dw - fadeX, 0, fadeX, dh, dw, 0, dw - fadeX, 0);
-    }
-  }
+  const SCRIM_RGB = "15, 8, 14";
 
   function computeFit() {
     const vw = video.videoWidth;
@@ -117,12 +83,9 @@ export function initCinemaScroll() {
     ambient.width = AMBIENT_SAMPLE_W;
     ambient.height = Math.max(1, Math.round((AMBIENT_SAMPLE_W * ch) / cw));
 
-    if (needsAmbient) {
-      framed.width = rdw;
-      framed.height = rdh;
-      const feather = Math.round(Math.min(rdw, rdh) * FEATHER);
-      buildMask(rdw, rdh, rdw < cw - 1 ? feather : 0, rdh < ch - 1 ? feather : 0);
-    }
+    const feather = needsAmbient ? Math.round(Math.min(rdw, rdh) * FEATHER) : 0;
+    fit.featherX = rdw < cw - 1 ? feather : 0;
+    fit.featherY = rdh < ch - 1 ? feather : 0;
   }
 
   function resizeCanvas() {
@@ -135,6 +98,17 @@ export function initCinemaScroll() {
     canvas.height = h;
     computeFit();
     return true;
+  }
+
+  // Esmaece só a tira de borda (poucos % da área do canvas) com um
+  // gradiente nativo — muito mais barato que recompor o frame inteiro
+  // num canvas auxiliar a cada tick, e o resultado é visualmente idêntico.
+  function featherEdge(x, y, w, h, x0, y0, x1, y1) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    g.addColorStop(0, `rgba(${SCRIM_RGB}, ${AMBIENT_SCRIM})`);
+    g.addColorStop(1, `rgba(${SCRIM_RGB}, 0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
   }
 
   function drawFrame() {
@@ -156,15 +130,22 @@ export function initCinemaScroll() {
     ambientCtx.drawImage(video, (aw - vw * s) / 2, (ah - vh * s) / 2, vw * s, vh * s);
 
     ctx.drawImage(ambient, 0, 0, aw, ah, 0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = `rgba(15, 8, 14, ${AMBIENT_SCRIM})`;
+    ctx.fillStyle = `rgba(${SCRIM_RGB}, ${AMBIENT_SCRIM})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    framedCtx.globalCompositeOperation = "source-over";
-    framedCtx.drawImage(video, 0, 0, fit.dw, fit.dh);
-    framedCtx.globalCompositeOperation = "destination-in";
-    framedCtx.drawImage(mask, 0, 0);
+    // Frame nítido desenhado direto — sem canvas auxiliar nem composição
+    // pixel a pixel.
+    ctx.drawImage(video, fit.dx, fit.dy, fit.dw, fit.dh);
 
-    ctx.drawImage(framed, fit.dx, fit.dy);
+    const { dx, dy, dw, dh, featherX, featherY } = fit;
+    if (featherX > 0) {
+      featherEdge(dx, dy, featherX, dh, dx + featherX, 0, dx, 0);
+      featherEdge(dx + dw - featherX, dy, featherX, dh, dx + dw - featherX, 0, dx + dw, 0);
+    }
+    if (featherY > 0) {
+      featherEdge(dx, dy, dw, featherY, 0, dy + featherY, 0, dy);
+      featherEdge(dx, dy + dh - featherY, dw, featherY, 0, dy + dh - featherY, 0, dy + dh);
+    }
   }
 
   // ------------------------------------------------- frame-ready scheduling

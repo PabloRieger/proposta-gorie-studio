@@ -192,9 +192,11 @@ body.is-loading { overflow: hidden; }
   border-bottom: 1px solid transparent;
 }
 .nav.is-scrolled {
-  background: rgba(21, 12, 20, 0.82);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  /* Sólido em vez de backdrop-filter: blur(): o navegador tinha que
+     recalcular esse desfoque a cada frame, bem em cima do canvas mais
+     pesado da página (a seção cinematográfica). Opacidade alta compensa a
+     falta de "vidro fosco" sem custo nenhum de composição. */
+  background: rgba(21, 12, 20, 0.96);
   padding: 0.75rem 0;
   border-bottom-color: var(--aubergine-line);
 }
@@ -202,7 +204,7 @@ body.is-loading { overflow: hidden; }
    inverte para manter contraste. */
 .nav.is-light { color: var(--ink); }
 .nav.is-light.is-scrolled {
-  background: rgba(246, 239, 231, 0.82);
+  background: rgba(246, 239, 231, 0.96);
   border-bottom-color: rgba(21, 12, 20, 0.12);
 }
 .nav.is-light .nav__brand em { color: rgba(21, 12, 20, 0.55); }
