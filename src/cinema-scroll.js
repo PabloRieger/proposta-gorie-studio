@@ -17,6 +17,11 @@ const MIN_FRAME_VISIBLE = 0.74;
 const AMBIENT_SAMPLE_W = 32;
 const AMBIENT_SCRIM = 0.52;
 const FEATHER = 0.055;
+// O fundo ambiente é um zoom borrado — já abstrato o bastante pra ninguém
+// notar se ele atualiza 9x por segundo em vez de 60x. Isso tira do caminho
+// mais quente (todo frame, sempre ativo em celular em retrato) os dois
+// draws de tamanho do canvas inteiro que ele exige.
+const AMBIENT_UPDATE_MS = 110;
 
 /**
  * Experiência cinematográfica: a posição de scroll é a única fonte de verdade
@@ -100,6 +105,7 @@ export function initCinemaScroll() {
     canvas.width = w;
     canvas.height = h;
     computeFit();
+    lastAmbientUpdate = 0; // geometria mudou, força o ambiente a redesenhar já
     return true;
   }
 
@@ -114,6 +120,8 @@ export function initCinemaScroll() {
     ctx.fillRect(x, y, w, h);
   }
 
+  let lastAmbientUpdate = 0;
+
   function drawFrame() {
     if (disposed || !fit.dw) return;
 
@@ -123,21 +131,29 @@ export function initCinemaScroll() {
       return;
     }
 
-    // Recorte cover do frame reduzido ao extremo e reampliado: vira uma
-    // extensão desfocada da própria cena atrás do vídeo.
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const aw = ambient.width;
-    const ah = ambient.height;
-    const s = Math.max(aw / vw, ah / vh);
-    ambientCtx.drawImage(video, (aw - vw * s) / 2, (ah - vh * s) / 2, vw * s, vh * s);
+    // Os dois draws de tamanho do canvas inteiro (ampliar o ambiente +
+    // pintar o véu) só rodam a cada ~110ms — o resultado já é um borrão de
+    // cor, atualizar mais rápido que isso é gasto que ninguém percebe.
+    const now = performance.now();
+    if (now - lastAmbientUpdate >= AMBIENT_UPDATE_MS) {
+      lastAmbientUpdate = now;
 
-    ctx.drawImage(ambient, 0, 0, aw, ah, 0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = `rgba(${SCRIM_RGB}, ${AMBIENT_SCRIM})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Recorte cover do frame reduzido ao extremo e reampliado: vira uma
+      // extensão desfocada da própria cena atrás do vídeo.
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const aw = ambient.width;
+      const ah = ambient.height;
+      const s = Math.max(aw / vw, ah / vh);
+      ambientCtx.drawImage(video, (aw - vw * s) / 2, (ah - vh * s) / 2, vw * s, vh * s);
+
+      ctx.drawImage(ambient, 0, 0, aw, ah, 0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = `rgba(${SCRIM_RGB}, ${AMBIENT_SCRIM})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     // Frame nítido desenhado direto — sem canvas auxiliar nem composição
-    // pixel a pixel.
+    // pixel a pixel. Esse sim roda todo frame: é a parte que o olho segue.
     ctx.drawImage(video, fit.dx, fit.dy, fit.dw, fit.dh);
 
     const { dx, dy, dw, dh, featherX, featherY } = fit;
