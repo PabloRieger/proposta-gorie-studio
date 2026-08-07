@@ -349,7 +349,6 @@ body.is-loading { overflow: hidden; }
   padding: 0 1.5rem;
   opacity: 0;
   visibility: hidden;
-  filter: blur(6px);
   transform: translateY(28px);
 }
 

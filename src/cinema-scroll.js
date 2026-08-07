@@ -4,7 +4,10 @@ import { CINEMA_SCROLL_VH } from "./config.js";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const MAX_DPR = 2;
+// 2x em tela Retina/4K significa desenhar até 4x mais pixels por frame do
+// que numa tela comum, num vídeo que já não tem esse tanto de detalhe pra
+// mostrar. 1.5x continua nítido e corta ~44% dos pixels de cada draw.
+const MAX_DPR = 1.5;
 
 // O clipe é 16:9 e a composição ocupa a largura toda. Cover puro em telas
 // quadradas ou verticais corta metade do enquadramento, então limitamos o
@@ -194,10 +197,16 @@ export function initCinemaScroll() {
   const state = { time: 0 };
   let lastAppliedTime = -1;
 
+  // O vídeo é 30fps: um frame dura ~0.033s. Buscar mais fino que isso não
+  // revela nenhum frame novo — só força o decoder a repetir trabalho. Meio
+  // frame de folga corta boa parte dos seeks num scroll rápido sem perder
+  // nitidez nenhuma, já que a fonte não tem frames pra mostrar entre eles.
+  const SEEK_EPSILON = 1 / 60;
+
   function applyTime() {
     if (disposed) return;
     const t = state.time;
-    if (Math.abs(t - lastAppliedTime) < 0.001) return;
+    if (Math.abs(t - lastAppliedTime) < SEEK_EPSILON) return;
     lastAppliedTime = t;
     if (video.readyState >= 1) {
       video.currentTime = t;
@@ -233,19 +242,23 @@ export function initCinemaScroll() {
       { el: texts[2], in: 0.64, out: 0.82 },
     ];
 
+    // Sem filter: blur() aqui — animar blur força o navegador a recompor a
+    // região inteira a cada frame, e essas janelas de transição caem bem em
+    // cima do scroll mais pesado da página. Opacidade + translateY já dão o
+    // ar editorial sem esse custo.
     beats.forEach(({ el, in: tIn, out: tOut }) => {
       if (!el) return;
       if (tIn !== null) {
         textTimeline.fromTo(
           el,
-          { autoAlpha: 0, y: 34, filter: "blur(8px)" },
-          { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.1 },
+          { autoAlpha: 0, y: 34 },
+          { autoAlpha: 1, y: 0, duration: 0.1 },
           tIn
         );
       }
       textTimeline.to(
         el,
-        { autoAlpha: 0, y: -26, filter: "blur(8px)", duration: 0.1 },
+        { autoAlpha: 0, y: -26, duration: 0.1 },
         tOut
       );
     });
