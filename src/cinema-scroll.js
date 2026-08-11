@@ -23,22 +23,29 @@ const FEATHER = 0.055;
 // draws de tamanho do canvas inteiro que ele exige.
 const AMBIENT_UPDATE_MS = 110;
 
+// A sequência foi extraída do vídeo-fonte a 12fps (345 frames, ~10MB no
+// total). Buscar um frame de vídeo (seek) tem custo de decodificação
+// imprevisível entre navegadores/aparelhos — trocar o índice de uma imagem
+// já decodificada é instantâneo, então o scrub nunca mais trava.
+const FRAME_COUNT = 345;
+const framePath = (i) => `/video/cinema-frames/frame-${String(i + 1).padStart(4, "0")}.webp`;
+
 /**
- * Experiência cinematográfica: a posição de scroll é a única fonte de verdade
- * do currentTime do vídeo. O vídeo nunca toca sozinho; cada frame é desenhado
- * manualmente no canvas.
+ * Experiência cinematográfica: a posição de scroll escolhe qual frame da
+ * sequência de imagens é desenhado no canvas. Nada de <video>, nada de seek.
  */
 export function initCinemaScroll() {
   const spacer = document.querySelector("[data-cinema-spacer]");
   const pin = document.querySelector("[data-cinema-pin]");
   const canvas = document.querySelector("[data-cinema-canvas]");
-  const video = document.querySelector("[data-cinema-video]");
   const hint = document.querySelector("[data-cinema-hint]");
   const flood = document.querySelector("[data-cinema-flood]");
   const vignette = document.querySelector("[data-cinema-vignette]");
   const texts = Array.from(document.querySelectorAll("[data-cinema-text]"));
 
-  if (!spacer || !pin || !canvas || !video) return () => {};
+  if (!spacer || !pin || !canvas) {
+    return { destroy: () => {}, progress: () => 1, ready: Promise.resolve() };
+  }
 
   spacer.style.height = `${CINEMA_SCROLL_VH}vh`;
 
@@ -47,10 +54,11 @@ export function initCinemaScroll() {
   let disposed = false;
   let scrollTrigger = null;
   let textTimeline = null;
-  let rvfcHandle = null;
 
   // ---------------------------------------------------------------- canvas
   let fit = { dx: 0, dy: 0, dw: 0, dh: 0, featherX: 0, featherY: 0, needsAmbient: false };
+  let sourceW = 0;
+  let sourceH = 0;
 
   // Canvas minúsculo: ampliá-lo produz o desfoque do fundo praticamente de
   // graça, sem custo de ctx.filter a cada frame.
@@ -60,21 +68,19 @@ export function initCinemaScroll() {
   const SCRIM_RGB = "15, 8, 14";
 
   function computeFit() {
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    if (!vw || !vh) return;
+    if (!sourceW || !sourceH) return;
 
     const cw = canvas.width;
     const ch = canvas.height;
 
-    const contain = Math.min(cw / vw, ch / vh);
-    const cover = Math.max(cw / vw, ch / vh);
+    const contain = Math.min(cw / sourceW, ch / sourceH);
+    const cover = Math.max(cw / sourceW, ch / sourceH);
     // Amplia além do contain só até o ponto em que ainda resta
     // MIN_FRAME_VISIBLE do enquadramento na dimensão apertada.
     const scale = Math.min(cover, contain / MIN_FRAME_VISIBLE);
 
-    const dw = vw * scale;
-    const dh = vh * scale;
+    const dw = sourceW * scale;
+    const dh = sourceH * scale;
 
     const rdw = Math.round(dw);
     const rdh = Math.round(dh);
@@ -122,12 +128,12 @@ export function initCinemaScroll() {
 
   let lastAmbientUpdate = 0;
 
-  function drawFrame() {
+  function drawImageFrame(img) {
     if (disposed || !fit.dw) return;
 
     if (!fit.needsAmbient) {
       // Tela 16:9: o frame já cobre tudo, um único draw resolve.
-      ctx.drawImage(video, fit.dx, fit.dy, fit.dw, fit.dh);
+      ctx.drawImage(img, fit.dx, fit.dy, fit.dw, fit.dh);
       return;
     }
 
@@ -140,12 +146,10 @@ export function initCinemaScroll() {
 
       // Recorte cover do frame reduzido ao extremo e reampliado: vira uma
       // extensão desfocada da própria cena atrás do vídeo.
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
       const aw = ambient.width;
       const ah = ambient.height;
-      const s = Math.max(aw / vw, ah / vh);
-      ambientCtx.drawImage(video, (aw - vw * s) / 2, (ah - vh * s) / 2, vw * s, vh * s);
+      const s = Math.max(aw / sourceW, ah / sourceH);
+      ambientCtx.drawImage(img, (aw - sourceW * s) / 2, (ah - sourceH * s) / 2, sourceW * s, sourceH * s);
 
       ctx.drawImage(ambient, 0, 0, aw, ah, 0, 0, canvas.width, canvas.height);
       ctx.fillStyle = `rgba(${SCRIM_RGB}, ${AMBIENT_SCRIM})`;
@@ -154,7 +158,7 @@ export function initCinemaScroll() {
 
     // Frame nítido desenhado direto — sem canvas auxiliar nem composição
     // pixel a pixel. Esse sim roda todo frame: é a parte que o olho segue.
-    ctx.drawImage(video, fit.dx, fit.dy, fit.dw, fit.dh);
+    ctx.drawImage(img, fit.dx, fit.dy, fit.dw, fit.dh);
 
     const { dx, dy, dw, dh, featherX, featherY } = fit;
     if (featherX > 0) {
@@ -167,106 +171,70 @@ export function initCinemaScroll() {
     }
   }
 
-  // ------------------------------------------------- frame-ready scheduling
-  const hasRVFC = typeof video.requestVideoFrameCallback === "function";
-  let fallbackTimer = null;
+  // ------------------------------------------------------- sequência de frames
+  const images = new Array(FRAME_COUNT).fill(null);
+  let loadedCount = 0;
+  let currentIndex = -1;
 
-  function cancelPending() {
-    if (rvfcHandle !== null && typeof video.cancelVideoFrameCallback === "function") {
-      video.cancelVideoFrameCallback(rvfcHandle);
-    }
-    rvfcHandle = null;
-    if (fallbackTimer) {
-      clearTimeout(fallbackTimer);
-      fallbackTimer = null;
-    }
-  }
+  // Escolher o índice certo é uma leitura de array — não há custo a
+  // limitar, então cada tick do scroll desenha exatamente o frame pedido.
+  function setFrame(index) {
+    index = Math.max(0, Math.min(FRAME_COUNT - 1, index));
+    if (index === currentIndex) return;
 
-  // Desenha assim que o decoder entregar o frame do seek. O timer é a rede de
-  // segurança: se o seek cair no frame já exibido, nenhum callback dispara e
-  // sem ele o canvas congelaria para sempre.
-  function scheduleDraw() {
-    if (disposed) return;
-    cancelPending();
-
-    if (hasRVFC) {
-      rvfcHandle = video.requestVideoFrameCallback(() => {
-        rvfcHandle = null;
-        drawFrame();
-      });
-    } else {
-      video.addEventListener("seeked", onSeeked, { once: true });
+    const img = images[index];
+    if (img) {
+      currentIndex = index;
+      drawImageFrame(img);
+      return;
     }
 
-    fallbackTimer = setTimeout(() => {
-      fallbackTimer = null;
-      drawFrame();
-    }, 140);
-  }
-
-  function onSeeked() {
-    drawFrame();
-  }
-
-  // O objeto que o GSAP interpola. Ao invés de escrever direto no vídeo a cada
-  // tick, guardamos o alvo e aplicamos um único seek por frame do ticker.
-  const state = { time: 0 };
-  let lastAppliedTime = -1;
-
-  // O vídeo é 30fps: um frame dura ~0.033s. Buscar mais fino que isso não
-  // revela nenhum frame novo — só força o decoder a repetir trabalho.
-  const SEEK_EPSILON = 1 / 60;
-
-  // O epsilon acima só ajuda quando a posição quase não muda de um tick pro
-  // outro (rolagem devagar ou freando). Num scroll RÁPIDO a posição salta
-  // bastante a cada tick, então ele nunca barra nada — e é justo aí, sob
-  // rolagem rápida, que o decodificador de vídeo de um celular mais fraco
-  // sofre: buscar (seek) é bem mais caro que decodificar em sequência, e
-  // pedir isso 60x/s pode empilhar mais rápido do que o hardware entrega.
-  // Este teto por tempo limita a TAXA de busca real, não só a distância —
-  // e a borda de saída (trailing edge) garante que a última posição pedida
-  // sempre acaba sendo aplicada, mesmo que o scroll pare no meio do intervalo.
-  const MIN_SEEK_INTERVAL_MS = 40; // ~25 buscas/s no máximo
-  let lastSeekAt = 0;
-  let pendingSeekTimer = null;
-
-  function commitSeek() {
-    pendingSeekTimer = null;
-    const t = state.time;
-    if (Math.abs(t - lastAppliedTime) < SEEK_EPSILON) return;
-    lastAppliedTime = t;
-    lastSeekAt = performance.now();
-    if (video.readyState >= 1) {
-      video.currentTime = t;
-      scheduleDraw();
+    // Ainda carregando: desenha o vizinho já disponível mais próximo em
+    // vez de deixar o canvas congelado ou piscar em branco.
+    for (let d = 1; d < FRAME_COUNT; d++) {
+      const lo = index - d;
+      const hi = index + d;
+      if (lo >= 0 && images[lo]) {
+        drawImageFrame(images[lo]);
+        return;
+      }
+      if (hi < FRAME_COUNT && images[hi]) {
+        drawImageFrame(images[hi]);
+        return;
+      }
     }
   }
 
-  function applyTime() {
-    if (disposed) return;
-    const elapsed = performance.now() - lastSeekAt;
-    if (elapsed >= MIN_SEEK_INTERVAL_MS) {
-      if (pendingSeekTimer) clearTimeout(pendingSeekTimer);
-      commitSeek();
-    } else if (!pendingSeekTimer) {
-      pendingSeekTimer = setTimeout(commitSeek, MIN_SEEK_INTERVAL_MS - elapsed);
-    }
+  function loadFrame(i) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () => {
+        images[i] = img;
+        loadedCount++;
+        if (i === 0) {
+          sourceW = img.naturalWidth;
+          sourceH = img.naturalHeight;
+          resizeCanvas();
+          setFrame(0);
+        }
+        resolve();
+      };
+      img.onerror = () => {
+        loadedCount++;
+        resolve();
+      };
+      img.src = framePath(i);
+    });
   }
+
+  const readyPromise = Promise.all(
+    Array.from({ length: FRAME_COUNT }, (_, i) => loadFrame(i))
+  ).then(() => {});
 
   // ------------------------------------------------------------ inicializar
   function build() {
     if (disposed) return;
-
-    const duration = video.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-
-    // último frame real (evita travar no fim exato, que alguns decoders
-    // devolvem como frame vazio)
-    const endTime = Math.max(0, duration - 0.05);
-
-    resizeCanvas();
-    video.currentTime = 0;
-    scheduleDraw();
 
     // Timeline dos textos: percorrida pelo mesmo progress do ScrollTrigger,
     // portanto reverte naturalmente ao rolar para cima.
@@ -327,34 +295,24 @@ export function initCinemaScroll() {
       scrub: true,
       invalidateOnRefresh: true,
       onUpdate: (self) => {
-        state.time = self.progress * endTime;
-        applyTime();
+        setFrame(Math.round(self.progress * (FRAME_COUNT - 1)));
         textTimeline.progress(self.progress);
       },
       onRefresh: () => {
         resizeCanvas();
-        drawFrame();
+        currentIndex = -1;
+        setFrame(currentIndex === -1 ? 0 : currentIndex);
       },
     });
 
     ScrollTrigger.refresh();
 
     if (import.meta.env.DEV) {
-      window.__cinema = { scrollTrigger, textTimeline, video, canvas, pin, ScrollTrigger, gsap, drawFrame, resizeCanvas, fit: () => fit };
+      window.__cinema = { scrollTrigger, textTimeline, canvas, pin, ScrollTrigger, gsap, images, fit: () => fit };
     }
   }
 
-  // -------------------------------------------------------------- metadados
-  function onLoadedMetadata() {
-    if (video.readyState >= 1) build();
-  }
-
-  if (video.readyState >= 1 && Number.isFinite(video.duration) && video.duration > 0) {
-    build();
-  } else {
-    video.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
-    video.load();
-  }
+  build();
 
   // -------------------------------------------------------------- resize
   let resizeRaf = null;
@@ -363,7 +321,7 @@ export function initCinemaScroll() {
     resizeRaf = requestAnimationFrame(() => {
       resizeRaf = null;
       const changed = resizeCanvas();
-      if (changed) drawFrame();
+      if (changed && images[currentIndex]) drawImageFrame(images[currentIndex]);
       ScrollTrigger.refresh();
     });
   }
@@ -372,16 +330,18 @@ export function initCinemaScroll() {
   window.addEventListener("orientationchange", onResize);
 
   // -------------------------------------------------------------- cleanup
-  return function destroy() {
+  function destroy() {
     disposed = true;
     window.removeEventListener("resize", onResize);
     window.removeEventListener("orientationchange", onResize);
-    video.removeEventListener("loadedmetadata", onLoadedMetadata);
-    video.removeEventListener("seeked", onSeeked);
     if (resizeRaf) cancelAnimationFrame(resizeRaf);
-    if (pendingSeekTimer) clearTimeout(pendingSeekTimer);
-    cancelPending();
     if (scrollTrigger) scrollTrigger.kill();
     if (textTimeline) textTimeline.kill();
+  }
+
+  return {
+    destroy,
+    progress: () => loadedCount / FRAME_COUNT,
+    ready: readyPromise,
   };
 }

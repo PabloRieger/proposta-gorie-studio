@@ -306,14 +306,6 @@ body.is-loading { overflow: hidden; }
   height: 100%;
 }
 
-.cinema-source {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .cinema-vignette {
   position: absolute;
   inset: 0;

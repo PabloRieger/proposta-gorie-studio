@@ -5,10 +5,11 @@ const MAX_WAIT_MS = 16000;
 const ENDED_FALLBACK_MS = 900;
 
 /**
- * Segura a página até a animação da marca terminar por completo E o vídeo da
- * experiência ter dados suficientes para o scrub. Resolve sempre.
+ * Segura a página até a animação da marca terminar por completo E a
+ * sequência de imagens do scroll cinematográfico estar toda carregada.
+ * Resolve sempre.
  */
-export function runPreloader(cinemaVideo) {
+export function runPreloader(cinema) {
   const root = document.querySelector("[data-preloader]");
   const bar = document.querySelector("[data-preloader-bar]");
   const logo = document.querySelector("[data-preloader-video]");
@@ -33,14 +34,7 @@ export function runPreloader(cinemaVideo) {
       return Math.min(1, logo.currentTime / logo.duration);
     };
 
-    const videoRatio = () => {
-      if (videoDone) return 1;
-      let ratio = cinemaVideo.readyState / 4;
-      if (cinemaVideo.buffered.length && cinemaVideo.duration) {
-        ratio = Math.max(ratio, cinemaVideo.buffered.end(0) / cinemaVideo.duration);
-      }
-      return Math.min(1, ratio);
-    };
+    const videoRatio = () => (videoDone ? 1 : cinema.progress());
 
     // Só chega a 100% quando as duas frentes terminam — por isso o menor dos dois.
     const progress = () => {
@@ -53,7 +47,6 @@ export function runPreloader(cinemaVideo) {
       clearInterval(ticker);
       clearTimeout(endedTimer);
       clearTimeout(ceiling);
-      cinemaVideo.removeEventListener("canplaythrough", onVideoReady);
       logo?.removeEventListener("ended", onLogoEnded);
       logo?.removeEventListener("timeupdate", watchLogoTail);
 
@@ -103,8 +96,7 @@ export function runPreloader(cinemaVideo) {
       logo.addEventListener("timeupdate", watchLogoTail);
     }
 
-    if (cinemaVideo.readyState >= 3) onVideoReady();
-    else cinemaVideo.addEventListener("canplaythrough", onVideoReady);
+    cinema.ready.then(onVideoReady);
 
     const ceiling = setTimeout(finish, MAX_WAIT_MS);
   });

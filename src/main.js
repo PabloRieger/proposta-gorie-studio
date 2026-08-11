@@ -175,9 +175,9 @@ function boot() {
   wireFloatingCta();
   wireReveals();
 
-  const destroyCinema = initCinemaScroll();
+  const cinema = initCinemaScroll();
 
-  runPreloader(document.querySelector("[data-cinema-video]")).then(() => {
+  runPreloader(cinema).then(() => {
     ScrollTrigger.refresh();
     gsap.to("[data-intro]", {
       opacity: 1,
@@ -191,7 +191,7 @@ function boot() {
   });
 
   window.addEventListener("pagehide", () => {
-    destroyCinema?.();
+    cinema.destroy();
     lenis?.destroy();
   });
 }
