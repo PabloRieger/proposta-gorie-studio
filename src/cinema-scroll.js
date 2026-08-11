@@ -28,7 +28,10 @@ const AMBIENT_UPDATE_MS = 110;
 // imprevisível entre navegadores/aparelhos — trocar o índice de uma imagem
 // já decodificada é instantâneo, então o scrub nunca mais trava.
 const FRAME_COUNT = 345;
-const framePath = (i) => `/video/cinema-frames/frame-${String(i + 1).padStart(4, "0")}.webp`;
+// import.meta.env.BASE_URL (config "./") resolve relativo à página publicada
+// — um "/" fixo aqui quebraria a build sob o subpath do GitHub Pages.
+const framePath = (i) =>
+  `${import.meta.env.BASE_URL}video/cinema-frames/frame-${String(i + 1).padStart(4, "0")}.webp`;
 
 /**
  * Experiência cinematográfica: a posição de scroll escolhe qual frame da
