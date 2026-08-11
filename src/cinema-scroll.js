@@ -110,12 +110,19 @@ export function initCinemaScroll() {
     const rect = pin.getBoundingClientRect();
     const w = Math.round(rect.width * dpr);
     const h = Math.round(rect.height * dpr);
-    if (canvas.width === w && canvas.height === h) return false;
-    canvas.width = w;
-    canvas.height = h;
+    const sizeChanged = canvas.width !== w || canvas.height !== h;
+    if (sizeChanged) {
+      canvas.width = w;
+      canvas.height = h;
+      lastAmbientUpdate = 0; // geometria mudou, força o ambiente a redesenhar já
+    }
+    // Sempre recalcula o fit, mesmo sem mudança de tamanho: a primeira
+    // chamada pode acontecer antes do frame 0 carregar (sourceW/H ainda
+    // zerados), e sem isso o fit real nunca seria calculado se o canvas já
+    // nascer do tamanho certo — exatamente o que trava tudo em preto no
+    // mobile, onde não há reflow por scrollbar/fonte pra "salvar" a conta.
     computeFit();
-    lastAmbientUpdate = 0; // geometria mudou, força o ambiente a redesenhar já
-    return true;
+    return sizeChanged;
   }
 
   // Esmaece só a tira de borda (poucos % da área do canvas) com um
