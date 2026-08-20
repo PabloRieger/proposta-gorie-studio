@@ -17,13 +17,15 @@ local Remotes = Compartilhado.Remotes
 
 local Melhorias = Config.Melhorias
 
-local StatsService = {}
+local Progresso = { ordem = 20 }
+
+local Dados
 
 local perfis: { [Player]: any } = {}
 local alterado = Instance.new("BindableEvent")
 
 --- Dispara (player, perfil) sempre que algo relevante para o personagem muda.
-StatsService.Alterado = alterado.Event
+Progresso.Alterado = alterado.Event
 
 local remoteEstado = Remotes.obter("EstadoAtualizado")
 local remoteNotificar = Remotes.obter("Notificar")
@@ -36,7 +38,7 @@ local function definir(player: Player, nome: string, valor: any)
 end
 
 --- Índice do rank correspondente à Força (sempre >= 1).
-function StatsService.indiceRank(forca: number): number
+function Progresso.indiceRank(forca: number): number
 	local indice = 1
 	for i, rank in Config.Ranks do
 		if forca >= rank.forca then
@@ -48,58 +50,89 @@ function StatsService.indiceRank(forca: number): number
 	return indice
 end
 
-function StatsService.rankDe(forca: number)
-	return Config.Ranks[StatsService.indiceRank(forca)]
+function Progresso.rankDe(forca: number)
+	return Config.Ranks[Progresso.indiceRank(forca)]
 end
 
-function StatsService.evolucaoDe(nivel: number)
+function Progresso.evolucaoDe(nivel: number)
 	return Config.Evolucoes[math.clamp(nivel + 1, 1, #Config.Evolucoes)]
 end
 
-function StatsService.proximaEvolucao(nivel: number)
+function Progresso.proximaEvolucao(nivel: number)
 	return Config.Evolucoes[nivel + 2]
 end
 
-function StatsService.obter(player: Player)
+function Progresso.obter(player: Player)
 	return perfis[player]
 end
 
-function StatsService.multiplicadorForca(player: Player): number
+--[[
+	Multiplicadores da RECOMPENSA por boneco quebrado.
+
+	Rank e evolução ficam de fora daqui de propósito: eles já multiplicam o
+	dano, e um boneco vale o que vale. Ficar mais forte deve significar quebrar
+	mais bonecos por minuto — não ganhar mais por boneco. Contar duas vezes
+	transforma a curva em exponencial e o jogo se resolve sozinho.
+]]
+function Progresso.multiplicadorForca(player: Player): number
 	local perfil = perfis[player]
 	if not perfil then
 		return 1
 	end
 
-	local rank = StatsService.rankDe(perfil.forca)
-	local evolucao = StatsService.evolucaoDe(perfil.evolucao)
-	local bonusTreino = 1 + Melhorias.bonus("treino", perfil.melhorias.treino or 0)
-
-	return rank.multiplicador * evolucao.multiplicador * bonusTreino
+	return 1 + Melhorias.bonus("treino", perfil.melhorias.treino or 0)
 end
 
-function StatsService.multiplicadorMoedas(player: Player): number
+function Progresso.multiplicadorMoedas(player: Player): number
 	local perfil = perfis[player]
 	if not perfil then
 		return 1
 	end
 
-	local bonusFortuna = 1 + Melhorias.bonus("fortuna", perfil.melhorias.fortuna or 0)
-	local bonusEvolucao = 1 + perfil.evolucao * 0.1
-
-	return bonusFortuna * bonusEvolucao
+	return 1 + Melhorias.bonus("fortuna", perfil.melhorias.fortuna or 0)
 end
 
-function StatsService.multiplicadorClique(player: Player): number
+--[[
+	Dano de um golpe.
+
+	Repare no que NÃO entra aqui: a Força. Ela é placar e porteira — nunca
+	alimenta o próprio ganho. Foi essa realimentação que fez a primeira versão
+	do jogo se resolver sozinha em 14 minutos; o poder vem de equipamento e de
+	evolução, que são finitos e conquistados.
+
+	Espada e mascote ainda não existem (passos 2 e 5). Os ganchos ficam aqui
+	valendo 1 para que entrar com eles depois seja preencher dado, não mexer
+	em fórmula.
+]]
+function Progresso.dano(player: Player): number
 	local perfil = perfis[player]
 	if not perfil then
-		return 1
+		return 0
 	end
 
-	return Config.Geral.MULTIPLICADOR_CLIQUE
-		* (1 + Melhorias.bonus("punho", perfil.melhorias.punho or 0))
+	local rank = Progresso.rankDe(perfil.forca)
+	local evolucao = Progresso.evolucaoDe(perfil.evolucao)
+	local punho = 1 + Melhorias.bonus("punho", perfil.melhorias.punho or 0)
+
+	return Config.Geral.DANO_BASE
+		* punho
+		* rank.multiplicador
+		* evolucao.multiplicador
+		* Progresso.bonusEspada(player)
+		* Progresso.bonusMascotes(player)
 end
 
-function StatsService.notificar(player: Player, mensagem: string, tipo: string?)
+--- Passo 2. Sem espada equipada, o multiplicador é o punho nu.
+function Progresso.bonusEspada(_player: Player): number
+	return 1
+end
+
+--- Passo 5.
+function Progresso.bonusMascotes(_player: Player): number
+	return 1
+end
+
+function Progresso.notificar(player: Player, mensagem: string, tipo: string?)
 	remoteNotificar:FireClient(player, mensagem, tipo or "info")
 end
 
@@ -108,7 +141,7 @@ end
 	Este canal é caro, então só é usado quando algo de fato muda de nível —
 	nunca no tick de treino.
 ]]
-function StatsService.enviarEstado(player: Player)
+function Progresso.enviarEstado(player: Player)
 	local perfil = perfis[player]
 	if not perfil then
 		return
@@ -120,29 +153,32 @@ function StatsService.enviarEstado(player: Player)
 	})
 end
 
-function StatsService.sincronizar(player: Player)
+function Progresso.sincronizar(player: Player)
 	local perfil = perfis[player]
 	if not perfil then
 		return
 	end
 
-	local indiceRank = StatsService.indiceRank(perfil.forca)
+	local indiceRank = Progresso.indiceRank(perfil.forca)
 	local rank = Config.Ranks[indiceRank]
-	local evolucao = StatsService.evolucaoDe(perfil.evolucao)
-	local proxima = StatsService.proximaEvolucao(perfil.evolucao)
+	local evolucao = Progresso.evolucaoDe(perfil.evolucao)
+	local proxima = Progresso.proximaEvolucao(perfil.evolucao)
 
 	local rankAnterior = player:GetAttribute("RankIndice") or indiceRank
 
 	definir(player, "Forca", perfil.forca)
 	definir(player, "Moedas", perfil.moedas)
+	definir(player, "Reliquias", perfil.reliquias)
+	definir(player, "Dano", Progresso.dano(player))
 	definir(player, "Evolucao", perfil.evolucao)
+	definir(player, "AutoLigado", perfil.autoLigado == true)
 	definir(player, "RankIndice", indiceRank)
 	definir(player, "RankNome", rank.nome)
 	definir(player, "RankCor", rank.cor)
 	definir(player, "EvolucaoNome", evolucao.nome)
 	definir(player, "EvolucaoCor", evolucao.cor)
-	definir(player, "MultForca", StatsService.multiplicadorForca(player))
-	definir(player, "MultMoedas", StatsService.multiplicadorMoedas(player))
+	definir(player, "MultForca", Progresso.multiplicadorForca(player))
+	definir(player, "MultMoedas", Progresso.multiplicadorMoedas(player))
 	definir(player, "ProximaEvolucaoNome", proxima and proxima.nome or "")
 	definir(player, "ProximaEvolucaoForca", proxima and proxima.forcaNecessaria or 0)
 
@@ -150,34 +186,45 @@ function StatsService.sincronizar(player: Player)
 	if leaderstats then
 		leaderstats["Força"].Value = Formato.abreviar(perfil.forca)
 		leaderstats["Moedas"].Value = Formato.abreviar(perfil.moedas)
+		leaderstats["Relíquias"].Value = Formato.abreviar(perfil.reliquias)
 		leaderstats["Evolução"].Value = evolucao.nome
 	end
 
 	if indiceRank > rankAnterior then
-		StatsService.notificar(player, "Novo rank: " .. rank.nome .. "!", "sucesso")
+		Progresso.notificar(player, "Novo rank: " .. rank.nome .. "!", "sucesso")
 	end
 
 	alterado:Fire(player, perfil)
 end
 
-function StatsService.adicionarForca(player: Player, valor: number)
+function Progresso.adicionarForca(player: Player, valor: number)
 	local perfil = perfis[player]
 	if not perfil or valor <= 0 then
 		return
 	end
 
 	perfil.forca += valor
-	StatsService.sincronizar(player)
+	Progresso.sincronizar(player)
 end
 
-function StatsService.adicionarMoedas(player: Player, valor: number)
+function Progresso.adicionarReliquias(player: Player, valor: number)
+	local perfil = perfis[player]
+	if not perfil or valor <= 0 then
+		return
+	end
+
+	perfil.reliquias += valor
+	Progresso.sincronizar(player)
+end
+
+function Progresso.adicionarMoedas(player: Player, valor: number)
 	local perfil = perfis[player]
 	if not perfil or valor <= 0 then
 		return
 	end
 
 	perfil.moedas += valor
-	StatsService.sincronizar(player)
+	Progresso.sincronizar(player)
 end
 
 --[[
@@ -185,7 +232,7 @@ end
 	de treino credita Força e Moedas juntas: somar em duas chamadas dispararia
 	`sincronizar` duas vezes por tick, por jogador, sem nada mudar entre elas.
 ]]
-function StatsService.adicionarGanho(player: Player, forca: number, moedas: number)
+function Progresso.adicionarGanho(player: Player, forca: number, moedas: number)
 	local perfil = perfis[player]
 	if not perfil then
 		return
@@ -199,12 +246,12 @@ function StatsService.adicionarGanho(player: Player, forca: number, moedas: numb
 	end
 
 	if forca > 0 or moedas > 0 then
-		StatsService.sincronizar(player)
+		Progresso.sincronizar(player)
 	end
 end
 
 --- Cobra as moedas se houver saldo. Retorna se a cobrança aconteceu.
-function StatsService.gastarMoedas(player: Player, valor: number): boolean
+function Progresso.gastarMoedas(player: Player, valor: number): boolean
 	local perfil = perfis[player]
 	if not perfil or perfil.moedas < valor then
 		return false
@@ -214,13 +261,25 @@ function StatsService.gastarMoedas(player: Player, valor: number): boolean
 	return true
 end
 
-function StatsService.registrar(player: Player, perfil)
+function Progresso.iniciar(servicos)
+	Dados = servicos.Dados
+end
+
+function Progresso.aoEntrar(player: Player)
+	Progresso.registrar(player, Dados.obter(player))
+end
+
+function Progresso.aoSair(player: Player)
+	Progresso.remover(player)
+end
+
+function Progresso.registrar(player: Player, perfil)
 	perfis[player] = perfil
 
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 
-	for _, nome in { "Força", "Moedas", "Evolução" } do
+	for _, nome in { "Força", "Moedas", "Relíquias", "Evolução" } do
 		local vitrine = Instance.new("StringValue")
 		vitrine.Name = nome
 		vitrine.Value = "0"
@@ -229,12 +288,12 @@ function StatsService.registrar(player: Player, perfil)
 
 	leaderstats.Parent = player
 
-	StatsService.sincronizar(player)
-	StatsService.enviarEstado(player)
+	Progresso.sincronizar(player)
+	Progresso.enviarEstado(player)
 end
 
-function StatsService.remover(player: Player)
+function Progresso.remover(player: Player)
 	perfis[player] = nil
 end
 
-return StatsService
+return Progresso

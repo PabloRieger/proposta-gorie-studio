@@ -12,29 +12,32 @@ local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
 local Formato = Compartilhado.Formato
 local Remotes = Compartilhado.Remotes
 
-local StatsService = require(script.Parent.StatsService)
 
-local EvolucaoService = {}
+local Evolucao = { ordem = 70 }
 
-function EvolucaoService.iniciar()
+local Progresso
+
+function Evolucao.iniciar(servicos)
+	Progresso = servicos.Progresso
+
 	local remoteEvoluir = Remotes.obter("PedirEvolucao")
 	local remoteNotificar = Remotes.obter("Notificar")
 
 	remoteEvoluir.OnServerEvent:Connect(function(player)
-		local perfil = StatsService.obter(player)
+		local perfil = Progresso.obter(player)
 		if not perfil then
 			return
 		end
 
-		local proxima = StatsService.proximaEvolucao(perfil.evolucao)
+		local proxima = Progresso.proximaEvolucao(perfil.evolucao)
 
 		if not proxima then
-			StatsService.notificar(player, "Você já alcançou a evolução máxima.", "info")
+			Progresso.notificar(player, "Você já alcançou a evolução máxima.", "info")
 			return
 		end
 
 		if perfil.forca < proxima.forcaNecessaria then
-			StatsService.notificar(
+			Progresso.notificar(
 				player,
 				"Faltam " .. Formato.abreviar(proxima.forcaNecessaria - perfil.forca) .. " de Força.",
 				"erro"
@@ -45,8 +48,8 @@ function EvolucaoService.iniciar()
 		perfil.evolucao += 1
 		perfil.forca = 0
 
-		StatsService.sincronizar(player)
-		StatsService.enviarEstado(player)
+		Progresso.sincronizar(player)
+		Progresso.enviarEstado(player)
 
 		local anuncio = string.format(
 			"%s evoluiu para %s (x%.1f de Força)!",
@@ -64,4 +67,4 @@ function EvolucaoService.iniciar()
 	end)
 end
 
-return EvolucaoService
+return Evolucao

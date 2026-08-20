@@ -12,12 +12,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
 local Config = Compartilhado.Config
 
-local StatsService = require(script.Parent.StatsService)
 
 local Melhorias = Config.Melhorias
 local Geral = Config.Geral
 
-local PersonagemService = {}
+local Personagem = { ordem = 50 }
+
+local Progresso
 
 local ultimaAssinatura: { [Player]: string } = {}
 
@@ -44,7 +45,7 @@ local function aplicarEscala(humano: Humanoid, indiceRank: number)
 end
 
 local function aplicarAura(raiz: BasePart, nivelEvolucao: number)
-	local evolucao = StatsService.evolucaoDe(nivelEvolucao)
+	local evolucao = Progresso.evolucaoDe(nivelEvolucao)
 	local ativa = nivelEvolucao > 0
 
 	local luz = raiz:FindFirstChild("AuraLuz") :: PointLight?
@@ -83,13 +84,13 @@ local function aplicarAura(raiz: BasePart, nivelEvolucao: number)
 end
 
 --[[
-	StatsService.Alterado dispara a cada tick de treino. Redimensionar o corpo e
+	Progresso.Alterado dispara a cada tick de treino. Redimensionar o corpo e
 	recriar a aura nessa frequência seria desperdício puro, então guardamos uma
 	assinatura do que de fato importa visualmente e só reaplicamos quando ela muda.
 ]]
 local function assinatura(perfil): string
 	return table.concat({
-		StatsService.indiceRank(perfil.forca),
+		Progresso.indiceRank(perfil.forca),
 		perfil.evolucao,
 		perfil.melhorias.velocidade or 0,
 		perfil.melhorias.salto or 0,
@@ -103,7 +104,7 @@ local function aplicar(player: Player, forcar: boolean?)
 	end
 
 	local humano = personagem:FindFirstChildOfClass("Humanoid")
-	local perfil = StatsService.obter(player)
+	local perfil = Progresso.obter(player)
 	if not humano or not perfil or humano.Health <= 0 then
 		return
 	end
@@ -119,7 +120,7 @@ local function aplicar(player: Player, forcar: boolean?)
 	humano.UseJumpPower = true
 	humano.JumpPower = Geral.SALTO_BASE + Melhorias.bonus("salto", perfil.melhorias.salto or 0)
 
-	aplicarEscala(humano, StatsService.indiceRank(perfil.forca))
+	aplicarEscala(humano, Progresso.indiceRank(perfil.forca))
 
 	local raiz = personagem:FindFirstChild("HumanoidRootPart")
 	if raiz and raiz:IsA("BasePart") then
@@ -127,7 +128,7 @@ local function aplicar(player: Player, forcar: boolean?)
 	end
 end
 
-function PersonagemService.registrar(player: Player)
+function Personagem.aoEntrar(player: Player)
 	player.CharacterAppearanceLoaded:Connect(function()
 		-- Corpo novo: a assinatura antiga não vale mais, reaplica tudo.
 		-- O defer dá um quadro para a Roblox terminar de montar as escalas do R15.
@@ -139,14 +140,16 @@ function PersonagemService.registrar(player: Player)
 	end
 end
 
-function PersonagemService.iniciar()
-	StatsService.Alterado:Connect(function(player)
-		aplicar(player)
-	end)
+function Personagem.aoSair(player: Player)
+	ultimaAssinatura[player] = nil
+end
 
-	Players.PlayerRemoving:Connect(function(player)
-		ultimaAssinatura[player] = nil
+function Personagem.iniciar(servicos)
+	Progresso = servicos.Progresso
+
+	Progresso.Alterado:Connect(function(player)
+		aplicar(player)
 	end)
 end
 
-return PersonagemService
+return Personagem

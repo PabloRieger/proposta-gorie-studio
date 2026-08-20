@@ -4,7 +4,7 @@
 	Por que não um arquivo .rbxl com o mapa montado à mão: arquivo de lugar é
 	binário e não dá para revisar em diff, resolver conflito nem versionar de
 	forma útil. Gerando aqui, mudar o mapa é mudar a tabela de zonas — e o
-	TreinoService valida contra exatamente a mesma geometria.
+	Combate valida contra exatamente a mesma geometria.
 
 	As barreiras são criadas colidíveis para todos; o cliente desliga a colisão
 	localmente das que já liberou (ele é dono da física do próprio personagem).
@@ -18,7 +18,12 @@ local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
 local Config = Compartilhado.Config
 local Formato = Compartilhado.Formato
 
-local MundoBuilder = {}
+local Bonecos = Config.Bonecos
+
+local Mundo = { ordem = 30 }
+
+--- Preenchido por iniciar(); o Combate lê daqui.
+Mundo.bonecos = {}
 
 local ALTURA_BARREIRA = 18
 local LARGURA_CAMINHO = 16
@@ -115,6 +120,83 @@ local function pedestal(nome: string, rotulo: string, icone: string, posicao: Ve
 	return base
 end
 
+--[[
+	Um boneco de treino. É só geometria: a vida não mora aqui, mora no
+	Combate, porque ela é por jogador. O que fica na parte são os
+	atributos que o cliente precisa para desenhar a barra e o rótulo.
+]]
+local function construirBoneco(zona, indiceTier: number, pai: Instance)
+	local tier = Bonecos.tiers[indiceTier]
+	local escala = tier.escala
+	local centro = zona.posicao + Bonecos.posicoes[indiceTier]
+
+	local modelo = Instance.new("Model")
+	modelo.Name = zona.id .. "_" .. tier.id
+
+	local base = bloco(
+		"Base",
+		Vector3.new(5, 1, 5),
+		centro + Vector3.new(0, 0.5, 0),
+		Color3.fromRGB(70, 66, 60),
+		Enum.Material.Slate,
+		modelo
+	)
+
+	local alturaCorpo = 5 * escala
+	local corpo = bloco(
+		"Corpo",
+		Vector3.new(3.2 * escala, alturaCorpo, 2 * escala),
+		centro + Vector3.new(0, 1 + alturaCorpo * 0.5, 0),
+		tier.cor,
+		Enum.Material.WoodPlanks,
+		modelo
+	)
+
+	local cabeca = bloco(
+		"Cabeca",
+		Vector3.new(2.2 * escala, 2.2 * escala, 2.2 * escala),
+		centro + Vector3.new(0, 1 + alturaCorpo + 1.1 * escala, 0),
+		tier.cor,
+		Enum.Material.WoodPlanks,
+		modelo
+	)
+
+	-- Braços: só leitura visual de "isto é um boneco", sem colisão.
+	for _, lado in { -1, 1 } do
+		local braco = bloco(
+			"Braco",
+			Vector3.new(1 * escala, 3.4 * escala, 1 * escala),
+			centro + Vector3.new(lado * 2.3 * escala, 1 + alturaCorpo * 0.6, 0),
+			tier.cor,
+			Enum.Material.WoodPlanks,
+			modelo
+		)
+		braco.CanCollide = false
+	end
+
+	base.CanCollide = true
+	corpo.CanCollide = true
+	cabeca.CanCollide = false
+
+	modelo.PrimaryPart = corpo
+	modelo:SetAttribute("BonecoId", modelo.Name)
+	modelo:SetAttribute("Tier", indiceTier)
+	modelo:SetAttribute("TierNome", tier.nome)
+	modelo:SetAttribute("Vida", Bonecos.vidaDe(zona, indiceTier))
+	modelo:SetAttribute("DanoExigido", Bonecos.danoExigido(zona, indiceTier))
+	modelo:SetAttribute("Revida", tier.revida > 0)
+	modelo:SetAttribute("Alvo", corpo.Position + Vector3.new(0, alturaCorpo * 0.5 + 2, 0))
+	modelo.Parent = pai
+
+	return {
+		id = modelo.Name,
+		zona = zona,
+		indiceTier = indiceTier,
+		posicao = corpo.Position,
+		modelo = modelo,
+	}
+end
+
 local function limparCenarioPadrao()
 	for _, filho in workspace:GetChildren() do
 		if filho.Name == "Baseplate" or filho:IsA("SpawnLocation") then
@@ -184,7 +266,7 @@ local function construirHub(pai: Instance)
 
 	placa(
 		"EVOLUÇÃO LENDÁRIA",
-		"Clique para treinar · siga em frente para zonas melhores",
+		"Bata nos bonecos para ganhar Força · siga em frente para os melhores",
 		Color3.fromRGB(236, 240, 252),
 		Vector3.new(0, 22, 30),
 		pai
@@ -208,7 +290,7 @@ local function construirCaminho(deZ: number, ateZ: number, pai: Instance)
 	)
 end
 
-local function construirZona(zona, pai: Instance, pastaBarreiras: Instance)
+local function construirZona(zona, pai: Instance, pastaBarreiras: Instance, pastaBonecos: Instance)
 	local pasta = Instance.new("Folder")
 	pasta.Name = zona.nome
 	pasta.Parent = pai
@@ -259,20 +341,28 @@ local function construirZona(zona, pai: Instance, pastaBarreiras: Instance)
 		barreira:SetAttribute("ZonaNome", zona.nome)
 	end
 
+	local criados = {}
+	for indiceTier = 1, #Bonecos.tiers do
+		table.insert(criados, construirBoneco(zona, indiceTier, pastaBonecos))
+	end
+
 	placa(
 		zona.nome,
 		string.format(
-			"Requer %s de Força · rende %s/tick",
+			"Requer %s de Força · bonecos de %s a %s",
 			Formato.abreviar(zona.forcaMinima),
-			Formato.abreviar(zona.forcaPorTick)
+			Formato.abreviar(Bonecos.vidaDe(zona, 1)),
+			Formato.abreviar(Bonecos.vidaDe(zona, #Bonecos.tiers))
 		),
 		zona.cor,
 		Vector3.new(0, ALTURA_BARREIRA + 5, frenteZ),
 		pasta
 	)
+
+	return criados
 end
 
-function MundoBuilder.construir()
+function Mundo.iniciar()
 	limparCenarioPadrao()
 	ajustarIluminacao()
 
@@ -284,16 +374,27 @@ function MundoBuilder.construir()
 	pastaBarreiras.Name = "Barreiras"
 	pastaBarreiras.Parent = workspace
 
+	local pastaBonecos = Instance.new("Folder")
+	pastaBonecos.Name = "Bonecos"
+	pastaBonecos.Parent = workspace
+
 	construirHub(mundo)
 
 	local bordaAnterior = 45 -- borda frontal do hub
+	local todosOsBonecos = {}
 
 	for _, zona in Config.Zonas do
 		local frenteZ = zona.posicao.Z - zona.tamanho.Z * 0.5
 		construirCaminho(bordaAnterior, frenteZ, mundo)
-		construirZona(zona, mundo, pastaBarreiras)
+
+		for _, boneco in construirZona(zona, mundo, pastaBarreiras, pastaBonecos) do
+			table.insert(todosOsBonecos, boneco)
+		end
+
 		bordaAnterior = zona.posicao.Z + zona.tamanho.Z * 0.5
 	end
+
+	Mundo.bonecos = todosOsBonecos
 end
 
-return MundoBuilder
+return Mundo

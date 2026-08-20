@@ -1,32 +1,21 @@
 --[[
-	Tudo que dá para balancear sem tocar em lógica mora aqui.
+	ÍNDICE da configuração. Este arquivo não guarda valor nenhum: ele só diz
+	onde cada coisa mora, para que mudar balanceamento seja abrir UM arquivo
+	pequeno em vez de caçar número no meio de lógica.
+
+	    Geral      constantes globais (dano base, cooldowns, autosave)
+	    Ranks      títulos e multiplicadores por Força, dentro de uma vida
+	    Zonas      as fases: porteira de Força, base dos bonecos, geometria
+	    Bonecos    os quatro tiers de boneco e como escalam sobre a zona
+	    Melhorias  o que a loja vende hoje (vira itens no passo 2)
+	    Evolucoes  a escada de rebirth
 ]]
 
 return {
-	Geral = {
-		-- Ritmo do ganho passivo enquanto o jogador está parado na zona.
-		INTERVALO_TICK = 0.35,
-
-		-- Um clique de treino vale este tanto de ticks.
-		MULTIPLICADOR_CLIQUE = 1.5,
-		COOLDOWN_CLIQUE = 0.2,
-
-		-- Persistência.
-		INTERVALO_AUTOSAVE = 90,
-
-		-- Personagem.
-		VELOCIDADE_BASE = 16,
-		SALTO_BASE = 50,
-		ESCALA_MINIMA = 1.0,
-		ESCALA_MAXIMA = 1.9,
-		ESCALA_CABECA_MAXIMA = 1.35,
-
-		-- Anti-spam de compras (segundos entre pedidos aceitos).
-		COOLDOWN_COMPRA = 0.2,
-	},
-
+	Geral = require(script.Geral),
 	Ranks = require(script.Ranks),
 	Zonas = require(script.Zonas),
+	Bonecos = require(script.Bonecos),
 	Melhorias = require(script.Melhorias),
 	Evolucoes = require(script.Evolucoes),
 }

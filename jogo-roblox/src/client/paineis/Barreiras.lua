@@ -7,14 +7,14 @@
 	(que exigiria grupos de colisão por faixa de progresso).
 
 	Isto é conveniência visual, não segurança: quem burlar a barreira entra na
-	zona, mas o TreinoService revalida o requisito e não concede nada.
+	zona, mas o CombateService revalida o requisito e não concede nada.
 ]]
 
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
 
-local Barreiras = {}
+local Barreiras = { ordem = 50 }
 
 local TRANSPARENCIA_BLOQUEADA = 0.55
 local TRANSPARENCIA_LIBERADA = 0.94
@@ -31,7 +31,7 @@ local function atualizarUma(barreira: Instance, forca: number)
 	barreira.Transparency = if liberada then TRANSPARENCIA_LIBERADA else TRANSPARENCIA_BLOQUEADA
 end
 
-function Barreiras.iniciar()
+function Barreiras.montar()
 	local pasta = workspace:WaitForChild("Barreiras", 30)
 	if not pasta then
 		warn("[Barreiras] pasta não encontrada em Workspace")

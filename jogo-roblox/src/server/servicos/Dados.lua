@@ -16,8 +16,11 @@
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local DataService = {}
+local Config = require(ReplicatedStorage:WaitForChild("Compartilhado")).Config
+
+local Dados = { ordem = 10 }
 
 local NOME_LOJA = "EvolucaoLendaria_v1"
 local TENTATIVAS = 5
@@ -27,8 +30,14 @@ local RODADAS_REIVINDICACAO = 4
 local PADRAO = {
 	forca = 0,
 	moedas = 0,
+	reliquias = 0,
 	evolucao = 0,
 	melhorias = {},
+	-- Equipamento e mascotes entram nos próximos passos; os campos já existem
+	-- para que perfis salvos agora não precisem de migração depois.
+	inventario = {},
+	equipado = {},
+	autoLigado = false,
 	tempoJogado = 0,
 	visitas = 0,
 	sessao = "",
@@ -75,6 +84,7 @@ local function reconciliar(dados)
 	-- Blindagem contra save corrompido ou adulterado.
 	perfil.forca = math.max(tonumber(perfil.forca) or 0, 0)
 	perfil.moedas = math.max(tonumber(perfil.moedas) or 0, 0)
+	perfil.reliquias = math.max(tonumber(perfil.reliquias) or 0, 0)
 	perfil.evolucao = math.max(math.floor(tonumber(perfil.evolucao) or 0), 0)
 
 	local melhorias = {}
@@ -176,7 +186,7 @@ local function reivindicar(chave: string)
 end
 
 --- Carrega (ou cria) o perfil. Retorna nil quando não foi seguro carregar.
-function DataService.carregar(player: Player)
+function Dados.carregar(player: Player)
 	local dados
 
 	if loja then
@@ -205,11 +215,11 @@ function DataService.carregar(player: Player)
 	return perfil
 end
 
-function DataService.obter(player: Player)
+function Dados.obter(player: Player)
 	return perfis[player]
 end
 
-function DataService.salvar(player: Player, liberarSessao: boolean?)
+function Dados.salvar(player: Player, liberarSessao: boolean?)
 	local perfil = perfis[player]
 	if not perfil then
 		return
@@ -237,12 +247,38 @@ function DataService.salvar(player: Player, liberarSessao: boolean?)
 	end)
 end
 
-function DataService.descarregar(player: Player)
-	DataService.salvar(player, true)
+function Dados.descarregar(player: Player)
+	Dados.salvar(player, true)
 	perfis[player] = nil
 end
 
-function DataService.iniciar(intervaloAutosave: number)
+function Dados.aoEntrar(player: Player): boolean
+	local perfil = Dados.carregar(player)
+
+	if not perfil then
+		-- Recusar a entrada é melhor do que começar do zero e salvar por cima
+		-- do progresso que não conseguimos ler.
+		player:Kick(
+			"Não conseguimos carregar seu progresso agora.\n"
+				.. "Entre de novo em alguns instantes — nada foi perdido."
+		)
+		return false
+	end
+
+	if not player.Parent then
+		Dados.descarregar(player)
+		return false
+	end
+
+	return true
+end
+
+function Dados.aoSair(player: Player)
+	Dados.descarregar(player)
+end
+
+function Dados.iniciar()
+	local intervaloAutosave = Config.Geral.INTERVALO_AUTOSAVE
 	-- Uma chamada barata só para descobrir o acesso agora, e não no meio do
 	-- primeiro PlayerAdded.
 	if loja then
@@ -258,18 +294,18 @@ function DataService.iniciar(intervaloAutosave: number)
 		while true do
 			task.wait(intervaloAutosave)
 			for player in perfis do
-				task.spawn(DataService.salvar, player, false)
+				task.spawn(Dados.salvar, player, false)
 			end
 		end
 	end)
 
 	game:BindToClose(function()
 		for player in perfis do
-			task.spawn(DataService.salvar, player, true)
+			task.spawn(Dados.salvar, player, true)
 		end
 		-- Dá tempo das escritas terminarem antes do servidor morrer.
 		task.wait(3)
 	end)
 end
 
-return DataService
+return Dados

@@ -13,14 +13,17 @@ local Config = Compartilhado.Config
 local Formato = Compartilhado.Formato
 local Remotes = Compartilhado.Remotes
 
-local StatsService = require(script.Parent.StatsService)
 
 local Melhorias = Config.Melhorias
-local LojaService = {}
+local Loja = { ordem = 60 }
+
+local Progresso
 
 local ultimaCompra: { [Player]: number } = {}
 
-function LojaService.iniciar()
+function Loja.iniciar(servicos)
+	Progresso = servicos.Progresso
+
 	local remoteComprar = Remotes.obter("ComprarMelhoria")
 
 	remoteComprar.OnServerEvent:Connect(function(player, id)
@@ -35,7 +38,7 @@ function LojaService.iniciar()
 		ultimaCompra[player] = agora
 
 		local definicao = Melhorias.porId[id]
-		local perfil = StatsService.obter(player)
+		local perfil = Progresso.obter(player)
 		if not definicao or not perfil then
 			return
 		end
@@ -43,14 +46,14 @@ function LojaService.iniciar()
 		local nivel = perfil.melhorias[id] or 0
 
 		if nivel >= definicao.nivelMaximo then
-			StatsService.notificar(player, definicao.nome .. " já está no nível máximo.", "erro")
+			Progresso.notificar(player, definicao.nome .. " já está no nível máximo.", "erro")
 			return
 		end
 
 		local preco = Melhorias.preco(definicao, nivel)
 
-		if not StatsService.gastarMoedas(player, preco) then
-			StatsService.notificar(
+		if not Progresso.gastarMoedas(player, preco) then
+			Progresso.notificar(
 				player,
 				"Faltam " .. Formato.abreviar(preco - perfil.moedas) .. " moedas.",
 				"erro"
@@ -60,18 +63,19 @@ function LojaService.iniciar()
 
 		perfil.melhorias[id] = nivel + 1
 
-		StatsService.sincronizar(player)
-		StatsService.enviarEstado(player)
-		StatsService.notificar(
+		Progresso.sincronizar(player)
+		Progresso.enviarEstado(player)
+		Progresso.notificar(
 			player,
 			definicao.nome .. " agora está no nível " .. (nivel + 1) .. ".",
 			"sucesso"
 		)
 	end)
 
-	Players.PlayerRemoving:Connect(function(player)
-		ultimaCompra[player] = nil
-	end)
 end
 
-return LojaService
+function Loja.aoSair(player: Player)
+	ultimaCompra[player] = nil
+end
+
+return Loja

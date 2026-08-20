@@ -1,9 +1,11 @@
 # Evolução Lendária
 
-Jogo de Roblox do gênero *simulator de evolução*: treine, suba de rank, compre
-melhorias e **evolua** — zerando a Força em troca de um multiplicador permanente.
+Jogo de Roblox do gênero *simulator de evolução*: bata nos bonecos de treino,
+suba de rank, compre melhorias e **evolua** — zerando a Força em troca de um
+multiplicador permanente.
 
-Projeto completo e jogável: mapa, interface, persistência e balanceamento.
+> **Comece por [`MAPA.md`](MAPA.md).** Ele diz qual arquivo abrir para cada tipo
+> de mudança, e é o que evita varrer o código atrás do lugar certo.
 
 ---
 
@@ -59,14 +61,16 @@ No Studio:
 
 ## O laço de jogo
 
-1. **Treine** — clique, toque, segure `E` ou use o botão TREINAR. Parado dentro
-   de uma zona você também ganha, só que mais devagar.
-2. **Suba de rank** — o rank vem da Força atual, dá multiplicador e faz o
+1. **Bata nos bonecos** — clique, toque, segure `E` ou use o botão BATER. Há um
+   botão AUTO, que bate mais devagar de propósito. Parado não rende nada.
+2. **Suba os quatro bonecos da fase** — cada degrau cobra algo que o anterior
+   não cobrava: espada, armadura e, no quarto, equipamento que a loja não vende.
+3. **Suba de rank** — o rank vem da Força atual, multiplica o dano e faz o
    personagem crescer.
-3. **Avance de zona** — cada zona à frente rende mais e exige mais Força. A
-   barreira abre sozinha quando você atinge o requisito.
-4. **Compre melhorias** — com Moedas, na Loja. Elas **não** se perdem ao evoluir.
-5. **Evolua** — no Altar do hub. Zera a Força, dá multiplicador permanente,
+4. **Avance de fase** — quem destrava a próxima é a Força. A barreira abre
+   sozinha ao atingir o requisito.
+5. **Compre melhorias** — com Moedas, na Loja. Elas **não** se perdem ao evoluir.
+6. **Evolua** — no Altar do hub. Zera a Força, dá multiplicador permanente,
    título e uma aura nova.
 
 ---
@@ -76,38 +80,54 @@ No Studio:
 ```
 src/
 ├── shared/                  ReplicatedStorage.Compartilhado
-│   ├── Config/              todo o balanceamento
+│   ├── Config/              TODO o balanceamento (nenhuma lógica)
+│   │   ├── Geral.lua        dano base, cooldowns, autosave
 │   │   ├── Ranks.lua        títulos e multiplicadores por Força
-│   │   ├── Zonas.lua        zonas + geometria do mapa
+│   │   ├── Zonas.lua        as fases + geometria do mapa
+│   │   ├── Bonecos.lua      os 4 tiers de boneco
 │   │   ├── Melhorias.lua    loja, preços e bônus
-│   │   └── Evolucoes.lua    ladder de rebirth
+│   │   └── Evolucoes.lua    escada de rebirth
 │   ├── Formato.lua          "1.23M" a partir de 1234567
-│   └── Remotes.lua          criação/consulta dos RemoteEvents
+│   ├── Remotes.lua          canais cliente↔servidor
+│   └── Eventos.lua          sinais entre sistemas
 │
-├── server/                  ServerScriptService.Servidor
-│   ├── init.server.lua      ciclo de vida do jogador
-│   ├── DataService.lua      DataStore, trava de sessão, autosave
-│   ├── StatsService.lua     Força/Moedas/Evolução e multiplicadores
-│   ├── TreinoService.lua    laço de ganho + validação de zona
-│   ├── LojaService.lua      compras
-│   ├── EvolucaoService.lua  rebirth
-│   ├── PersonagemService.lua tamanho, velocidade e aura
-│   └── MundoBuilder.lua     constrói o mapa a partir de Config.Zonas
+├── server/
+│   ├── init.server.lua      carregador — não muda ao somar sistema
+│   └── servicos/            um arquivo por sistema
+│       ├── Dados.lua        DataStore, trava de sessão, autosave
+│       ├── Progresso.lua    Força/Moedas/Evolução, dano, multiplicadores
+│       ├── Mundo.lua        constrói mapa e bonecos a partir da config
+│       ├── Combate.lua      resolve golpe, vida por jogador, recompensa
+│       ├── Personagem.lua   tamanho, aura, velocidade e salto
+│       ├── Loja.lua         validação de compra
+│       └── Evolucao.lua     rebirth
 │
-└── client/                  StarterPlayer.StarterPlayerScripts.Cliente
-    ├── init.client.lua      monta a interface e liga os pedidos
-    ├── Ui.lua               tema e construtor de UI
-    ├── HUD.lua              status, barra de rank, botões
-    ├── Loja.lua             painel de melhorias
-    ├── Barreiras.lua        libera as zonas conquistadas
-    ├── Entrada.lua          clique/toque/tecla de treino
-    └── Notificacoes.lua     avisos de topo
+└── client/
+    ├── init.client.lua      carregador — não muda ao somar painel
+    ├── Ui.lua               tema e construtor de interface
+    ├── Estado.lua           lê e observa os atributos do jogador
+    └── paineis/             um arquivo por pedaço de tela
+        ├── Placar.lua       cartão de números e barra de rank
+        ├── Acoes.lua        botões de Loja e Evoluir
+        ├── Golpe.lua        BATER, AUTO, zona e números de ganho
+        ├── Loja.lua         painel de compras
+        ├── Bonecos.lua      rótulo, barra de vida e quebra
+        ├── Notificacoes.lua avisos do topo
+        ├── Barreiras.lua    liberação visual das fases
+        ├── Entrada.lua      clique, toque e tecla
+        └── Pedestais.lua    prompts do Altar e da Loja
 
 ferramentas/
 └── gerar-place.py           monta um .rbxlx a partir de src/, sem Rojo
 ```
 
-### Duas decisões que valem explicar
+### Três decisões que valem explicar
+
+**Os arquivos de entrada não conhecem ninguém pelo nome.** Somar um sistema é
+criar um arquivo em `servicos/` (ou `paineis/`); o carregador acha, ordena e
+injeta as dependências. Nenhum arquivo existente é editado — que é justamente o
+custo que mais pesa quando um projeto cresce.
+
 
 **O mapa é gerado por código.** `Config.Zonas` é a única fonte de verdade da
 geometria: o `MundoBuilder` constrói as plataformas a partir dela e o
@@ -134,7 +154,13 @@ alvos de ritmo. O comportamento atual, medido:
 | Última zona | ~6,5 h | ~35 h |
 | Evolução máxima | ~68 h | não alcança em 200 h |
 
-As duas relações que sustentam isso:
+> ⚠️ **Esses números são da versão anterior, sem combate.** A troca de renda por
+> tempo para dano em boneco invalida a curva: agora há vida, dano exigido e
+> recompensa por quebra no meio. O rebalanceamento por simulação está previsto
+> para depois que chefe, equipamento e mascote existirem — estimar na mão, com
+> tantas variáveis, já deu errado uma vez.
+
+As duas relações que ainda valem:
 
 - **Zonas** — requisito cresce ×12 por degrau, rendimento cresce ×2,1.
 - **Evoluções** — requisito cresce ×8, multiplicador cresce ×2,2.

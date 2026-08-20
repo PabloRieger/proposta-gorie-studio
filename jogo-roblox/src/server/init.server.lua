@@ -1,60 +1,74 @@
 --[[
-	Ponto de entrada do servidor.
+	CARREGADOR DO SERVIDOR.
 
-	O ciclo de vida do jogador vive todo aqui, em vez de espalhado em cada
-	serviço: fica óbvio em que ordem as coisas acontecem e é impossível um
-	serviço rodar antes do perfil existir.
+	Este arquivo não conhece nenhum serviço pelo nome, e é assim de propósito:
+	adicionar um sistema novo é criar UM arquivo em servicos/ — nada aqui muda.
+
+	Contrato de um serviço (tudo opcional menos o retorno):
+
+		local Servico = { ordem = 40 }
+
+		function Servico.iniciar(servicos)   -- uma vez, na subida
+		function Servico.aoEntrar(player)    -- jogador entrou; false aborta
+		function Servico.aoSair(player)      -- jogador saiu
+
+		return Servico
+
+	`ordem` decide quem sobe primeiro (menor primeiro) e em que sequência os
+	jogadores são processados. Dependência não se resolve com require: ela
+	chega pronta em `iniciar(servicos)`, o que evita ciclo e deixa o que cada
+	serviço usa visível nas primeiras linhas dele.
+
+	Faixas em uso: 10 dados · 20 progresso · 30 mundo · 40 combate
+	                50 personagem · 60 loja · 70 evolução
 ]]
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
-local Config = Compartilhado.Config
+local servicos = {}
+local emOrdem = {}
 
-local MundoBuilder = require(script.MundoBuilder)
-local DataService = require(script.DataService)
-local StatsService = require(script.StatsService)
-local PersonagemService = require(script.PersonagemService)
-local TreinoService = require(script.TreinoService)
-local LojaService = require(script.LojaService)
-local EvolucaoService = require(script.EvolucaoService)
+for _, modulo in script.servicos:GetChildren() do
+	if modulo:IsA("ModuleScript") then
+		local servico = require(modulo)
+		servico.nome = modulo.Name
+		servicos[modulo.Name] = servico
+		table.insert(emOrdem, servico)
+	end
+end
 
+table.sort(emOrdem, function(a, b)
+	return (a.ordem or 100) < (b.ordem or 100)
+end)
+
+for _, servico in emOrdem do
+	if servico.iniciar then
+		servico.iniciar(servicos)
+	end
+end
+
+--[[
+	Ciclo de vida do jogador, na mesma ordem da subida.
+
+	Um serviço que devolve `false` em aoEntrar interrompe a sequência — quem
+	interrompe é responsável por avisar o jogador. É como Dados recusa a
+	entrada quando não conseguiu ler o perfil.
+]]
 local function aoEntrar(player: Player)
-	local perfil = DataService.carregar(player)
-
-	if not perfil then
-		-- Preferimos recusar a entrada a deixar o jogador começar do zero e
-		-- salvar por cima do progresso que não conseguimos ler.
-		player:Kick(
-			"Não conseguimos carregar seu progresso agora.\n"
-				.. "Entre de novo em alguns instantes — nada foi perdido."
-		)
-		return
+	for _, servico in emOrdem do
+		if servico.aoEntrar and servico.aoEntrar(player) == false then
+			return
+		end
 	end
-
-	-- O jogador pode ter saído durante o carregamento.
-	if not player.Parent then
-		DataService.descarregar(player)
-		return
-	end
-
-	StatsService.registrar(player, perfil)
-	PersonagemService.registrar(player)
 end
 
 local function aoSair(player: Player)
-	StatsService.remover(player)
-	DataService.descarregar(player)
+	for _, servico in emOrdem do
+		if servico.aoSair then
+			servico.aoSair(player)
+		end
+	end
 end
-
-MundoBuilder.construir()
-
-DataService.iniciar(Config.Geral.INTERVALO_AUTOSAVE)
-PersonagemService.iniciar()
-TreinoService.iniciar()
-LojaService.iniciar()
-EvolucaoService.iniciar()
 
 Players.PlayerAdded:Connect(aoEntrar)
 Players.PlayerRemoving:Connect(aoSair)
@@ -64,4 +78,4 @@ for _, player in Players:GetPlayers() do
 	task.spawn(aoEntrar, player)
 end
 
-print("[Evolução Lendária] servidor pronto.")
+print(("[Evolução Lendária] %d serviços no ar."):format(#emOrdem))

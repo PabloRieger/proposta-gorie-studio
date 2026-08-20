@@ -1,9 +1,10 @@
 --[[
-	Treino ativo: clique, toque, tecla E ou o botão TREINAR.
+	Golpe: clique, toque, tecla E ou o botão BATER.
 
 	Segurar mantém o pedido em ritmo constante. O intervalo daqui é só de
-	conforto — quem manda no limite real é o COOLDOWN_CLIQUE do servidor,
-	que ignora pedidos rápidos demais.
+	conforto — quem manda no limite real é o COOLDOWN_GOLPE do servidor, que
+	ignora pedidos rápidos demais. O cliente também não escolhe o alvo: manda
+	"bati" e o servidor decide em qual boneco isso cai.
 ]]
 
 local UserInputService = game:GetService("UserInputService")
@@ -13,10 +14,10 @@ local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
 local Config = Compartilhado.Config
 local Remotes = Compartilhado.Remotes
 
-local Entrada = {}
+local Entrada = { ordem = 60 }
 
-local remoteTreinar = Remotes.obter("TreinarPedido")
-local INTERVALO = Config.Geral.COOLDOWN_CLIQUE + 0.03
+local remoteBater = Remotes.obter("Bater")
+local INTERVALO = Config.Geral.COOLDOWN_GOLPE + 0.03
 
 local segurando = false
 
@@ -29,7 +30,7 @@ local function comecar()
 
 	task.spawn(function()
 		while segurando do
-			remoteTreinar:FireServer()
+			remoteBater:FireServer()
 			task.wait(INTERVALO)
 		end
 	end)
@@ -39,39 +40,40 @@ local function parar()
 	segurando = false
 end
 
-local function ehEntradaDeTreino(input: InputObject): boolean
+local function ehGolpe(input: InputObject): boolean
 	return input.UserInputType == Enum.UserInputType.MouseButton1
 		or input.UserInputType == Enum.UserInputType.Touch
 		or input.KeyCode == Enum.KeyCode.E
 end
 
-function Entrada.iniciar(botaoTreinar: GuiButton?)
+function Entrada.ligar(ctx)
+	local botaoBater = ctx.paineis.Golpe.botao()
 	UserInputService.InputBegan:Connect(function(input, processadoPelaInterface)
-		if processadoPelaInterface or not ehEntradaDeTreino(input) then
+		if processadoPelaInterface or not ehGolpe(input) then
 			return
 		end
 		comecar()
 	end)
 
 	UserInputService.InputEnded:Connect(function(input)
-		if ehEntradaDeTreino(input) then
+		if ehGolpe(input) then
 			parar()
 		end
 	end)
 
-	if botaoTreinar then
-		-- InputBegan/InputEnded do próprio botão cobrem mouse e toque com um só caminho.
-		botaoTreinar.InputBegan:Connect(function(input)
-			if ehEntradaDeTreino(input) then
+	if botaoBater then
+		-- InputBegan/InputEnded do próprio botão cobrem mouse e toque de uma vez.
+		botaoBater.InputBegan:Connect(function(input)
+			if ehGolpe(input) then
 				comecar()
 			end
 		end)
-		botaoTreinar.InputEnded:Connect(function(input)
-			if ehEntradaDeTreino(input) then
+		botaoBater.InputEnded:Connect(function(input)
+			if ehGolpe(input) then
 				parar()
 			end
 		end)
-		botaoTreinar.MouseLeave:Connect(parar)
+		botaoBater.MouseLeave:Connect(parar)
 	end
 end
 

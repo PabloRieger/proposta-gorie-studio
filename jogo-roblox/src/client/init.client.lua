@@ -1,23 +1,38 @@
 --[[
-	Ponto de entrada do cliente: monta a interface e liga os pedidos ao servidor.
+	CARREGADOR DO CLIENTE.
+
+	Como no servidor: este arquivo não conhece painel nenhum pelo nome.
+	Adicionar interface é criar UM arquivo em paineis/.
+
+	Contrato de um painel:
+
+		local Painel = { ordem = 30 }
+
+		function Painel.montar(ctx)   -- constrói a interface
+		function Painel.ligar(ctx)    -- conecta remotes e sinais
+
+		return Painel
+
+	As duas fases existem porque `ligar` pode precisar de um painel que ainda
+	não existia durante o `montar` — a Entrada usa o botão que o Golpe criou.
+	Em `ligar`, `ctx.paineis` já está completo.
+
+	Painel desenha em `ctx.raiz`, não na ScreenGui: a raiz carrega o UIScale
+	que adapta tudo a tela pequena de uma vez só.
+
+	Conversa entre painéis é por sinal (Compartilhado.Eventos), nunca por
+	referência direta: o botão da loja no HUD emite "PedirLoja" sem saber que
+	a Loja existe.
+
+	Faixas em uso: 10 avisos · 20 placar · 25 ações · 26 golpe · 30 loja
+	                40 bonecos · 50 barreiras · 60 entrada · 70 pedestais
 ]]
 
 local Players = game:GetService("Players")
-local ProximityPromptService = game:GetService("ProximityPromptService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
-local Remotes = Compartilhado.Remotes
 
 local Ui = require(script.Ui)
-local HUD = require(script.HUD)
-local Loja = require(script.Loja)
-local Barreiras = require(script.Barreiras)
-local Entrada = require(script.Entrada)
-local Notificacoes = require(script.Notificacoes)
 
 local player = Players.LocalPlayer
-local remoteEvoluir = Remotes.obter("PedirEvolucao")
 
 local gui = Ui.novo("ScreenGui", {
 	Name = "InterfaceEvolucao",
@@ -27,32 +42,54 @@ local gui = Ui.novo("ScreenGui", {
 	Parent = player:WaitForChild("PlayerGui"),
 })
 
-HUD.criar(gui)
-Loja.criar(gui)
-Notificacoes.criar(gui)
-
-HUD.definirAcoes({
-	abrirLoja = function()
-		Loja.alternar()
-	end,
-	evoluir = function()
-		remoteEvoluir:FireServer()
-	end,
+local raiz = Ui.novo("Frame", {
+	Name = "Raiz",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Parent = gui,
 })
 
-Entrada.iniciar(HUD.botaoTreinar())
-Barreiras.iniciar()
+--[[
+	Uma escala só para telas pequenas, aplicada na raiz. É mais simples e mais
+	previsível do que cada painel reposicionar em UDim2 relativo — e um painel
+	novo herda o comportamento sem escrever nada.
+]]
+local escala = Ui.novo("UIScale", { Parent = raiz })
+local camera = workspace.CurrentCamera
 
-Remotes.obter("EstadoAtualizado").OnClientEvent:Connect(Loja.aplicarEstado)
-Remotes.obter("Notificar").OnClientEvent:Connect(Notificacoes.mostrar)
+local function ajustarEscala()
+	local largura = camera.ViewportSize.X
+	escala.Scale = if largura < 640 then 0.72 elseif largura < 900 then 0.85 else 1
+end
 
--- Pedestais do hub: o prompt é tratado no cliente para abrir a interface na hora.
-ProximityPromptService.PromptTriggered:Connect(function(prompt)
-	local nome = prompt.Parent and prompt.Parent.Name
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(ajustarEscala)
+ajustarEscala()
 
-	if nome == "Loja" then
-		Loja.alternar(true)
-	elseif nome == "Altar de Evolução" then
-		remoteEvoluir:FireServer()
+local contexto = { gui = gui, raiz = raiz, paineis = {} }
+
+local emOrdem = {}
+
+for _, modulo in script.paineis:GetChildren() do
+	if modulo:IsA("ModuleScript") then
+		local painel = require(modulo)
+		painel.nome = modulo.Name
+		contexto.paineis[modulo.Name] = painel
+		table.insert(emOrdem, painel)
 	end
+end
+
+table.sort(emOrdem, function(a, b)
+	return (a.ordem or 100) < (b.ordem or 100)
 end)
+
+for _, painel in emOrdem do
+	if painel.montar then
+		painel.montar(contexto)
+	end
+end
+
+for _, painel in emOrdem do
+	if painel.ligar then
+		painel.ligar(contexto)
+	end
+end

@@ -10,10 +10,12 @@ local RunService = game:GetService("RunService")
 
 local NOMES = {
 	-- cliente -> servidor
-	"TreinarPedido",
+	"Bater",
+	"AlternarAuto",
 	"ComprarMelhoria",
 	"PedirEvolucao",
 	-- servidor -> cliente
+	"GolpeResolvido",
 	"EstadoAtualizado",
 	"Notificar",
 }

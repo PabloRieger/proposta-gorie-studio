@@ -13,12 +13,14 @@ local Config = Compartilhado.Config
 local Formato = Compartilhado.Formato
 local Remotes = Compartilhado.Remotes
 
-local Ui = require(script.Parent.Ui)
+local Ui = require(script.Parent.Parent.Ui)
 
 local player = Players.LocalPlayer
 local Melhorias = Config.Melhorias
 
-local Loja = {}
+local Loja = { ordem = 30 }
+
+local Eventos = Compartilhado.Eventos
 
 local remoteComprar = Remotes.obter("ComprarMelhoria")
 
@@ -132,7 +134,8 @@ local function construirLinha(definicao, pai: Instance, ordem: number)
 	linhas[definicao.id] = { nivel = nivel, comprar = comprar }
 end
 
-function Loja.criar(gui: ScreenGui)
+function Loja.montar(ctx)
+	local gui = ctx.raiz
 	painel = Ui.novo("Frame", {
 		Name = "Loja",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -204,6 +207,13 @@ function Loja.criar(gui: ScreenGui)
 
 	player:GetAttributeChangedSignal("Moedas"):Connect(atualizarTudo)
 	atualizarTudo()
+end
+
+function Loja.ligar()
+	Eventos.sinal("PedirLoja"):Connect(function()
+		Loja.alternar()
+	end)
+	Remotes.obter("EstadoAtualizado").OnClientEvent:Connect(Loja.aplicarEstado)
 end
 
 --- Recebe do servidor os níveis atuais das melhorias.

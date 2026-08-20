@@ -3,10 +3,13 @@
 ]]
 
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Ui = require(script.Parent.Ui)
+local Remotes = require(ReplicatedStorage:WaitForChild("Compartilhado")).Remotes
 
-local Notificacoes = {}
+local Ui = require(script.Parent.Parent.Ui)
+
+local Notificacoes = { ordem = 10 }
 
 local DURACAO = 3.5
 local MAXIMO = 4
@@ -20,7 +23,8 @@ local CORES = {
 	info = Ui.cores.texto,
 }
 
-function Notificacoes.criar(pai: ScreenGui)
+function Notificacoes.montar(ctx)
+	local pai = ctx.raiz
 	container = Ui.novo("Frame", {
 		Name = "Notificacoes",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -35,6 +39,10 @@ function Notificacoes.criar(pai: ScreenGui)
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	})
+end
+
+function Notificacoes.ligar()
+	Remotes.obter("Notificar").OnClientEvent:Connect(Notificacoes.mostrar)
 end
 
 function Notificacoes.mostrar(mensagem: string, tipo: string?)
