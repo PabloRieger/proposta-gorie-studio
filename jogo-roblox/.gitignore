@@ -1,0 +1,9 @@
+# Lugares locais gerados pelo Studio
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+
+# Artefatos de build/ferramentas
+sourcemap.json
+build/
