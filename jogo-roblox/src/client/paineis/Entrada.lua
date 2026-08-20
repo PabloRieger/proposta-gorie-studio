@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
 local Config = Compartilhado.Config
+local Eventos = Compartilhado.Eventos
 local Remotes = Compartilhado.Remotes
 
 local Entrada = { ordem = 60 }
@@ -31,6 +32,8 @@ local function comecar()
 	task.spawn(function()
 		while segurando do
 			remoteBater:FireServer()
+			-- Braço na hora do clique; o impacto vem quando o servidor responder.
+			Eventos.emitir("GolpeIniciado")
 			task.wait(INTERVALO)
 		end
 	end)

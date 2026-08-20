@@ -27,6 +27,7 @@ local Remotes = Compartilhado.Remotes
 
 
 local Monstros = Config.Monstros
+local Sensacao = Config.Sensacao
 local Geral = Config.Geral
 
 local Combate = { ordem = 40 }
@@ -190,6 +191,17 @@ local function golpear(player: Player, automatico: boolean): boolean
 		return false
 	end
 
+	--[[
+		O crítico entra ANTES da comparação de propósito: um golpe sortudo que
+		vence a exigência do monstro por um instante é um dos melhores momentos
+		que este laço pode dar. Rolar no servidor, e não no cliente, é o que
+		impede alguém de crítico em todo golpe.
+	]]
+	local critico = math.random() < Sensacao.CHANCE_CRITICO
+	if critico then
+		dano *= Sensacao.MULTIPLICADOR_CRITICO
+	end
+
 	local exigido = Monstros.danoExigido(monstro.zona, monstro.indiceTier)
 	local arranhou = dano < exigido
 	if arranhou then
@@ -215,6 +227,7 @@ local function golpear(player: Player, automatico: boolean): boolean
 		restante = math.max(vida - acumulado, 0),
 		morreu = caiu,
 		arranhou = arranhou,
+		critico = critico,
 		automatico = automatico,
 	})
 

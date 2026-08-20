@@ -4,6 +4,7 @@
 	pequeno em vez de caçar número no meio de lógica.
 
 	    Geral      constantes globais (dano base, cooldowns, autosave)
+	    Sensacao   o que faz bater ser gostoso: braço, tremor, som, crítico
 	    Ranks      títulos e multiplicadores por Força, dentro de uma vida
 	    Zonas      as fases: porteira de Força, base dos monstros, geometria
 	    Monstros   os 4 tiers de dificuldade e as receitas de corpo
@@ -15,6 +16,7 @@
 
 return {
 	Geral = require(script.Geral),
+	Sensacao = require(script.Sensacao),
 	Ranks = require(script.Ranks),
 	Zonas = require(script.Zonas),
 	Monstros = require(script.Monstros),

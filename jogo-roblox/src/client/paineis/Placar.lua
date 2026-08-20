@@ -52,7 +52,7 @@ local function atualizar()
 	w.rodape.Text = string.format(
 		"%s de dano  ·  %s",
 		Formato.abreviar(Estado.ler("Dano", 0)),
-		Estado.ler("EspadaNome", "Punhos")
+		Estado.ler("EspadaNome", "Bastão Lascado")
 	)
 
 	local progresso, legenda = progressoDoRank()

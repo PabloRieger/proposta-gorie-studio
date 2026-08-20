@@ -20,6 +20,7 @@ local TweenService = game:GetService("TweenService")
 
 local Compartilhado = require(ReplicatedStorage:WaitForChild("Compartilhado"))
 local Config = Compartilhado.Config
+local S = Compartilhado.Config.Sensacao
 local Formato = Compartilhado.Formato
 local Remotes = Compartilhado.Remotes
 
@@ -93,8 +94,37 @@ local function montar(modelo: Model)
 		Parent = trilho,
 	}, { Ui.canto(5) })
 
+	--[[
+		Cada peça guarda o próprio lugar RELATIVO ao pivô do visual, não a
+		posição no mundo: o `animar` mexe no pivô todo quadro, então posição
+		absoluta guardada aqui estaria errada meio segundo depois.
+	]]
+	local pivo = visual:GetPivot()
+	local pecas, transparencias = {}, {}
+
+	for _, parte in visual:GetDescendants() do
+		if parte:IsA("BasePart") then
+			pecas[parte] = pivo:Inverse() * parte.CFrame
+			transparencias[parte] = parte.Transparency
+		end
+	end
+
+	local brilho = Ui.novo("Highlight", {
+		Name = "Impacto",
+		Adornee = modelo,
+		FillTransparency = 0.55,
+		OutlineTransparency = 1,
+		DepthMode = Enum.HighlightDepthMode.Occluded,
+		Enabled = false,
+		Parent = modelo,
+	})
+
 	monstros[modelo.Name] = {
 		modelo = modelo,
+		pecas = pecas,
+		transparencias = transparencias,
+		brilho = brilho,
+		piscaAte = 0,
 		ancora = ancora,
 		visual = visual,
 		base = visual:GetPivot(),
@@ -126,7 +156,7 @@ local function revisarExigencias()
 	end
 end
 
-local function numeroDeDano(m, valor: number, arranhou: boolean)
+local function numeroDeDano(m, valor: number, arranhou: boolean, critico: boolean)
 	local etiqueta = Ui.novo("BillboardGui", {
 		Adornee = m.ancora,
 		Size = UDim2.fromOffset(150, 40),
@@ -138,11 +168,16 @@ local function numeroDeDano(m, valor: number, arranhou: boolean)
 
 	local texto = Ui.texto({
 		Size = UDim2.fromScale(1, 1),
-		Text = (if arranhou then "" else "-") .. Formato.abreviar(valor),
-		TextColor3 = if arranhou then Ui.cores.textoFraco else Ui.cores.forca,
+		Text = (if arranhou then "" else "-")
+			.. Formato.abreviar(valor)
+			.. (if critico then "!" else ""),
+		TextColor3 = if arranhou
+			then Ui.cores.textoFraco
+			elseif critico then Ui.cores.moeda
+			else Ui.cores.forca,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Font = Ui.fonteTitulo,
-		TextSize = if arranhou then 16 else 24,
+		TextSize = if arranhou then 16 elseif critico then 38 else 24,
 		TextStrokeTransparency = 0.35,
 		Parent = etiqueta,
 	})
@@ -161,6 +196,57 @@ local function numeroDeDano(m, valor: number, arranhou: boolean)
 	end)
 end
 
+--[[
+	Flash branco no impacto. Highlight custa menos que trocar a cor de cada
+	peça e devolver depois — e não corre o risco de deixar um monstro branco
+	para sempre se algo interromper no meio.
+]]
+local function piscar(m, critico: boolean)
+	if not m.brilho then
+		return
+	end
+
+	m.brilho.FillColor = if critico then Color3.fromRGB(255, 226, 140) else Color3.new(1, 1, 1)
+	m.brilho.FillTransparency = if critico then 0.35 else 0.55
+	m.brilho.Enabled = true
+
+	m.piscaAte = os.clock() + (if critico then 0.12 else 0.07)
+	task.delay(if critico then 0.12 else 0.07, function()
+		if m.brilho and os.clock() >= m.piscaAte then
+			m.brilho.Enabled = false
+		end
+	end)
+end
+
+--[[
+	Morte que se vê: as peças voam e somem, em vez de o monstro sumir de um
+	quadro para o outro. Cada peça guarda o próprio lugar relativo ao pivô, e é
+	de lá que ela volta no renascimento.
+]]
+local function espalhar(m)
+	for parte, _ in m.pecas do
+		local direcao = Vector3.new(
+			math.random() * 2 - 1,
+			math.random() * 1.2 + 0.4,
+			math.random() * 2 - 1
+		).Unit
+
+		TweenService:Create(parte, TweenInfo.new(S.MORTE_ESPALHA, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			CFrame = (parte.CFrame + direcao * S.MORTE_FORCA)
+				* CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6),
+			Transparency = 1,
+		}):Play()
+	end
+end
+
+local function recompor(m)
+	local pivo = m.visual:GetPivot()
+	for parte, offset in m.pecas do
+		parte.CFrame = pivo * offset
+		parte.Transparency = m.transparencias[parte] or 0
+	end
+end
+
 local function esconder(m, escondido: boolean)
 	for _, parte in m.visual:GetDescendants() do
 		if parte:IsA("BasePart") then
@@ -173,10 +259,21 @@ end
 
 local function aoMorrer(m)
 	m.morto = true
-	esconder(m, true)
+	m.ancora.CanCollide = false
+	m.billboard.Enabled = false
+	if m.brilho then
+		m.brilho.Enabled = false
+	end
+
+	espalhar(m)
+
+	task.delay(S.MORTE_ESPALHA, function()
+		esconder(m, true)
+	end)
 
 	task.delay(Config.Geral.RENASCE_MONSTRO, function()
 		if m.modelo.Parent then
+			recompor(m)
 			m.morto = false
 			m.recuo = 0
 			esconder(m, false)
@@ -191,8 +288,14 @@ local function aoGolpe(resultado)
 		return
 	end
 
-	numeroDeDano(m, resultado.dano, resultado.arranhou)
-	m.recuo = if resultado.arranhou then RECUO_MAXIMO * 0.3 else RECUO_MAXIMO
+	numeroDeDano(m, resultado.dano, resultado.arranhou, resultado.critico)
+	if not resultado.arranhou then
+		piscar(m, resultado.critico)
+	end
+	m.recuo = if resultado.arranhou
+		then RECUO_MAXIMO * 0.3
+		elseif resultado.critico then RECUO_MAXIMO * 2
+		else RECUO_MAXIMO
 
 	local proporcao = if resultado.vida > 0 then resultado.restante / resultado.vida else 0
 	m.vida.Size = UDim2.fromScale(math.clamp(proporcao, 0, 1), 1)

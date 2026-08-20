@@ -32,12 +32,12 @@ local Armas = {}
 ]]
 Armas.espadas = {
 	{
-		id = "esp_punhos",
-		nome = "Punhos",
+		id = "esp_bastao",
+		nome = "Bastão Lascado",
 		dano = 1,
 		inicial = true,
 		raridade = "inicial",
-		lamina = { comprimento = 0, largura = 0, cor = rgb(0, 0, 0), brilho = false },
+		lamina = { comprimento = 2.1, largura = 0.28, cor = rgb(122, 96, 66), brilho = false },
 	},
 	{
 		id = "esp_madeira",
