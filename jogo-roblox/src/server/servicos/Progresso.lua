@@ -67,11 +67,11 @@ function Progresso.obter(player: Player)
 end
 
 --[[
-	Multiplicadores da RECOMPENSA por boneco quebrado.
+	Multiplicadores da RECOMPENSA por monstro morto.
 
 	Rank e evolução ficam de fora daqui de propósito: eles já multiplicam o
-	dano, e um boneco vale o que vale. Ficar mais forte deve significar quebrar
-	mais bonecos por minuto — não ganhar mais por boneco. Contar duas vezes
+	dano, e um monstro vale o que vale. Ficar mais forte deve significar matar
+	mais monstros por minuto — não ganhar mais por monstro. Contar duas vezes
 	transforma a curva em exponencial e o jogo se resolve sozinho.
 ]]
 function Progresso.multiplicadorForca(player: Player): number

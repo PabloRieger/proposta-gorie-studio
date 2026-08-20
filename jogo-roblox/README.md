@@ -1,6 +1,6 @@
 # Evolução Lendária
 
-Jogo de Roblox do gênero *simulator de evolução*: bata nos bonecos de treino,
+Jogo de Roblox do gênero *simulator de evolução*: mate monstros,
 suba de rank, compre melhorias e **evolua** — zerando a Força em troca de um
 multiplicador permanente.
 
@@ -61,10 +61,11 @@ No Studio:
 
 ## O laço de jogo
 
-1. **Bata nos bonecos** — clique, toque, segure `E` ou use o botão BATER. Há um
+1. **Mate os monstros** — clique, toque, segure `E` ou use o botão BATER. Há um
    botão AUTO, que bate mais devagar de propósito. Parado não rende nada.
-2. **Suba os quatro bonecos da fase** — cada degrau cobra algo que o anterior
-   não cobrava: espada, armadura e, no quarto, equipamento que a loja não vende.
+2. **Suba os quatro monstros da fase** — cada fase tem quatro espécies próprias,
+   e cada degrau cobra algo que o anterior não cobrava: espada, armadura e, no
+   quarto, equipamento que a loja não vende.
 3. **Suba de rank** — o rank vem da Força atual, multiplica o dano e faz o
    personagem crescer.
 4. **Avance de fase** — quem destrava a próxima é a Força. A barreira abre
@@ -84,7 +85,8 @@ src/
 │   │   ├── Geral.lua        dano base, cooldowns, autosave
 │   │   ├── Ranks.lua        títulos e multiplicadores por Força
 │   │   ├── Zonas.lua        as fases + geometria do mapa
-│   │   ├── Bonecos.lua      os 4 tiers de boneco
+│   │   ├── Monstros.lua     os 4 tiers e as receitas de corpo
+│   │   ├── Bestiario.lua    as 40 espécies (nome, silhueta, paleta)
 │   │   ├── Melhorias.lua    loja, preços e bônus
 │   │   └── Evolucoes.lua    escada de rebirth
 │   ├── Formato.lua          "1.23M" a partir de 1234567
@@ -96,7 +98,7 @@ src/
 │   └── servicos/            um arquivo por sistema
 │       ├── Dados.lua        DataStore, trava de sessão, autosave
 │       ├── Progresso.lua    Força/Moedas/Evolução, dano, multiplicadores
-│       ├── Mundo.lua        constrói mapa e bonecos a partir da config
+│       ├── Mundo.lua        constrói mapa e monstros a partir da config
 │       ├── Combate.lua      resolve golpe, vida por jogador, recompensa
 │       ├── Personagem.lua   tamanho, aura, velocidade e salto
 │       ├── Loja.lua         validação de compra
@@ -111,7 +113,7 @@ src/
         ├── Acoes.lua        botões de Loja e Evoluir
         ├── Golpe.lua        BATER, AUTO, zona e números de ganho
         ├── Loja.lua         painel de compras
-        ├── Bonecos.lua      rótulo, barra de vida e quebra
+        ├── Monstros.lua     rótulo, vida, morte e animação
         ├── Notificacoes.lua avisos do topo
         ├── Barreiras.lua    liberação visual das fases
         ├── Entrada.lua      clique, toque e tecla
@@ -155,7 +157,7 @@ alvos de ritmo. O comportamento atual, medido:
 | Evolução máxima | ~68 h | não alcança em 200 h |
 
 > ⚠️ **Esses números são da versão anterior, sem combate.** A troca de renda por
-> tempo para dano em boneco invalida a curva: agora há vida, dano exigido e
+> tempo para dano em monstro invalida a curva: agora há vida, dano exigido e
 > recompensa por quebra no meio. O rebalanceamento por simulação está previsto
 > para depois que chefe, equipamento e mascote existirem — estimar na mão, com
 > tantas variáveis, já deu errado uma vez.

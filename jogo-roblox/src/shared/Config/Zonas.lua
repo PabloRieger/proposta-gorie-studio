@@ -9,7 +9,7 @@
 	`forcaMinima` é o que destrava a fase seguinte — e é a ÚNICA porta
 	obrigatória. Parkour e chefão são a trilha rápida, não o caminho.
 
-	`boneco` é a base da fase: os quatro tiers em Bonecos.lua são
+	`monstro` é a base da fase: os quatro tiers em Monstros.lua são
 	multiplicadores sobre estes três números, então rebalancear uma fase
 	inteira é mexer aqui.
 
@@ -36,7 +36,7 @@ return {
 		id = "vilarejo",
 		nome = "Academia do Vilarejo",
 		forcaMinima = 0,
-		boneco = {
+		monstro = {
 			vida = 15,
 			forca = 10,
 			moedas = 1.2,
@@ -49,7 +49,7 @@ return {
 		id = "dojo",
 		nome = "Dojo da Montanha",
 		forcaMinima = 600,
-		boneco = {
+		monstro = {
 			vida = 39,
 			forca = 22,
 			moedas = 2.6,
@@ -62,7 +62,7 @@ return {
 		id = "gelo",
 		nome = "Caverna de Gelo",
 		forcaMinima = 7.2e3,
-		boneco = {
+		monstro = {
 			vida = 100,
 			forca = 48,
 			moedas = 5.8,
@@ -75,7 +75,7 @@ return {
 		id = "vulcao",
 		nome = "Vulcão Adormecido",
 		forcaMinima = 86e3,
-		boneco = {
+		monstro = {
 			vida = 260,
 			forca = 110,
 			moedas = 13,
@@ -88,7 +88,7 @@ return {
 		id = "ruinas",
 		nome = "Ruínas Flutuantes",
 		forcaMinima = 1e6,
-		boneco = {
+		monstro = {
 			vida = 690,
 			forca = 230,
 			moedas = 28,
@@ -101,7 +101,7 @@ return {
 		id = "deserto",
 		nome = "Deserto Amaldiçoado",
 		forcaMinima = 12e6,
-		boneco = {
+		monstro = {
 			vida = 1.8e3,
 			forca = 520,
 			moedas = 62,
@@ -114,7 +114,7 @@ return {
 		id = "templo",
 		nome = "Templo Sombrio",
 		forcaMinima = 150e6,
-		boneco = {
+		monstro = {
 			vida = 4.6e3,
 			forca = 1.1e3,
 			moedas = 130,
@@ -127,7 +127,7 @@ return {
 		id = "fenda",
 		nome = "Fenda Estelar",
 		forcaMinima = 1.8e9,
-		boneco = {
+		monstro = {
 			vida = 12e3,
 			forca = 2.5e3,
 			moedas = 300,
@@ -140,7 +140,7 @@ return {
 		id = "vazio",
 		nome = "Núcleo do Vazio",
 		forcaMinima = 21e9,
-		boneco = {
+		monstro = {
 			vida = 31e3,
 			forca = 5.5e3,
 			moedas = 660,
@@ -153,7 +153,7 @@ return {
 		id = "eter",
 		nome = "Éter Primordial",
 		forcaMinima = 260e9,
-		boneco = {
+		monstro = {
 			vida = 81e3,
 			forca = 12e3,
 			moedas = 1.4e3,

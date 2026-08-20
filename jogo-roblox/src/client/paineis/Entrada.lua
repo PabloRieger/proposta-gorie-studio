@@ -4,7 +4,7 @@
 	Segurar mantém o pedido em ritmo constante. O intervalo daqui é só de
 	conforto — quem manda no limite real é o COOLDOWN_GOLPE do servidor, que
 	ignora pedidos rápidos demais. O cliente também não escolhe o alvo: manda
-	"bati" e o servidor decide em qual boneco isso cai.
+	"bati" e o servidor decide em qual monstro isso cai.
 ]]
 
 local UserInputService = game:GetService("UserInputService")

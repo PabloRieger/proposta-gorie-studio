@@ -69,7 +69,7 @@ local function atualizar()
 
 	local zona = Estado.ler("ZonaAtual", "")
 	if zona == "" then
-		w.zona.Text = "Siga em frente e bata nos bonecos para ganhar Força"
+		w.zona.Text = "Siga em frente e mate os monstros para ganhar Força"
 		w.zona.TextColor3 = Ui.cores.textoFraco
 	elseif Estado.ler("ZonaBloqueada", false) then
 		w.zona.Text = "🔒 " .. zona .. " — Força insuficiente"

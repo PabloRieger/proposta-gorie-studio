@@ -1,21 +1,21 @@
 --[[
-	Combate nos bonecos — o laço que o jogador toca 90% do tempo.
+	Combate — o laço que o jogador toca 90% do tempo.
 
 	Duas decisões estruturais:
 
-	1. A VIDA DO BONECO É POR JOGADOR. O boneco é um só no mundo, mas cada
+	1. A VIDA DO MONSTRO É POR JOGADOR. O monstro é um só no mundo, mas cada
 	   jogador acumula o próprio dano nele. Sem isso, dois jogadores na mesma
-	   fase disputam a mesma barra e quem chega depois é roubado. Quebrar é um
-	   evento privado: some só para quem quebrou, e volta em pouco mais de um
-	   segundo.
+	   fase disputam a mesma barra e quem chega depois é roubado. Matar é um
+	   evento privado: o monstro cai só para quem o matou, e volta em pouco
+	   mais de um segundo.
 
 	2. O CLIENTE NÃO ESCOLHE O ALVO. Ele manda "bati" e o servidor decide em
-	   qual boneco isso cai, a partir da posição real do personagem. Alvo vindo
+	   qual monstro isso cai, a partir da posição real do personagem. Alvo vindo
 	   do cliente é o vetor mais óbvio de exploit num jogo assim.
 
 	O golpe automático roda aqui no servidor, no ritmo reduzido de FATOR_AUTO.
-	Ele escolhe o melhor boneco que o jogador realmente machuca, em vez do mais
-	perto — bater de graça em pedra a 12% não ajuda ninguém.
+	Ele escolhe o melhor monstro que o jogador realmente machuca, em vez do mais
+	perto — bater de graça no monstro mais duro a 12% não ajuda ninguém.
 ]]
 
 local Players = game:GetService("Players")
@@ -26,23 +26,23 @@ local Config = Compartilhado.Config
 local Remotes = Compartilhado.Remotes
 
 
-local Bonecos = Config.Bonecos
+local Monstros = Config.Monstros
 local Geral = Config.Geral
 
 local Combate = { ordem = 40 }
 
 local Progresso
 
-local bonecos: { [string]: any } = {}
+local monstros: { [string]: any } = {}
 local progresso: { [Player]: { [string]: number } } = {}
-local quebradoAte: { [Player]: { [string]: number } } = {}
+local derrubadoAte: { [Player]: { [string]: number } } = {}
 local ultimoGolpe: { [Player]: number } = {}
 
 local remoteGolpe = Remotes.obter("GolpeResolvido")
 
 local function limpar(player: Player)
 	progresso[player] = nil
-	quebradoAte[player] = nil
+	derrubadoAte[player] = nil
 	ultimoGolpe[player] = nil
 end
 
@@ -52,8 +52,8 @@ end
 
 local function estadoDe(player: Player)
 	progresso[player] = progresso[player] or {}
-	quebradoAte[player] = quebradoAte[player] or {}
-	return progresso[player], quebradoAte[player]
+	derrubadoAte[player] = derrubadoAte[player] or {}
+	return progresso[player], derrubadoAte[player]
 end
 
 local function raizDe(player: Player): BasePart?
@@ -72,8 +72,8 @@ local function raizDe(player: Player): BasePart?
 end
 
 --[[
-	Bonecos ao alcance, já filtrados por tudo que o servidor precisa validar:
-	fase liberada, boneco de pé para ESTE jogador, distância real.
+	Monstros ao alcance, já filtrados por tudo que o servidor precisa validar:
+	fase liberada, monstro de pé para ESTE jogador, distância real.
 ]]
 local function alcancaveis(player: Player, perfil)
 	local raiz = raizDe(player)
@@ -81,22 +81,22 @@ local function alcancaveis(player: Player, perfil)
 		return {}
 	end
 
-	local _, quebrados = estadoDe(player)
+	local _, derrubados = estadoDe(player)
 	local agora = os.clock()
 	local lista = {}
 
-	for id, boneco in bonecos do
-		if perfil.forca < boneco.zona.forcaMinima then
+	for id, monstro in monstros do
+		if perfil.forca < monstro.zona.forcaMinima then
 			continue
 		end
-		if (quebrados[id] or 0) > agora then
+		if (derrubados[id] or 0) > agora then
 			continue
 		end
-		if (boneco.posicao - raiz.Position).Magnitude > Geral.ALCANCE_GOLPE then
+		if (monstro.posicao - raiz.Position).Magnitude > Geral.ALCANCE_GOLPE then
 			continue
 		end
 
-		table.insert(lista, boneco)
+		table.insert(lista, monstro)
 	end
 
 	return lista
@@ -104,39 +104,39 @@ end
 
 local function maisProximo(lista, posicao: Vector3)
 	local escolhido, menor = nil, math.huge
-	for _, boneco in lista do
-		local distancia = (boneco.posicao - posicao).Magnitude
+	for _, monstro in lista do
+		local distancia = (monstro.posicao - posicao).Magnitude
 		if distancia < menor then
-			escolhido, menor = boneco, distancia
+			escolhido, menor = monstro, distancia
 		end
 	end
 	return escolhido
 end
 
---- O melhor boneco que o dano do jogador realmente machuca (usado pelo auto).
+--- O melhor monstro que o dano do jogador realmente machuca (usado pelo auto).
 local function melhorAoAlcance(lista, dano: number)
 	local escolhido, melhorTier = nil, 0
-	for _, boneco in lista do
-		local exigido = Bonecos.danoExigido(boneco.zona, boneco.indiceTier)
-		if dano >= exigido and boneco.indiceTier > melhorTier then
-			escolhido, melhorTier = boneco, boneco.indiceTier
+	for _, monstro in lista do
+		local exigido = Monstros.danoExigido(monstro.zona, monstro.indiceTier)
+		if dano >= exigido and monstro.indiceTier > melhorTier then
+			escolhido, melhorTier = monstro, monstro.indiceTier
 		end
 	end
 	-- Nenhum à altura: bate no mais fraco, que ao menos rende alguma coisa.
 	if not escolhido then
 		local menorTier = math.huge
-		for _, boneco in lista do
-			if boneco.indiceTier < menorTier then
-				escolhido, menorTier = boneco, boneco.indiceTier
+		for _, monstro in lista do
+			if monstro.indiceTier < menorTier then
+				escolhido, menorTier = monstro, monstro.indiceTier
 			end
 		end
 	end
 	return escolhido
 end
 
-local function revidar(player: Player, boneco)
-	local revide = Bonecos.tiers[boneco.indiceTier].revida
-	if revide <= 0 then
+local function contraAtacar(player: Player, monstro)
+	local ataque = Monstros.tiers[monstro.indiceTier].ataque
+	if ataque <= 0 then
 		return
 	end
 
@@ -144,12 +144,12 @@ local function revidar(player: Player, boneco)
 	local humano = personagem and personagem:FindFirstChildOfClass("Humanoid")
 	if humano and humano.Health > 0 then
 		-- A armadura entra no passo 2 e vai reduzir isto.
-		humano:TakeDamage(revide)
+		humano:TakeDamage(ataque)
 	end
 end
 
-local function quebrar(player: Player, boneco, danos, quebrados)
-	local forca, moedas = Bonecos.recompensaDe(boneco.zona, boneco.indiceTier)
+local function derrubar(player: Player, monstro, danos, derrubados)
+	local forca, moedas = Monstros.recompensaDe(monstro.zona, monstro.indiceTier)
 
 	Progresso.adicionarGanho(
 		player,
@@ -157,8 +157,8 @@ local function quebrar(player: Player, boneco, danos, quebrados)
 		moedas * Progresso.multiplicadorMoedas(player)
 	)
 
-	danos[boneco.id] = 0
-	quebrados[boneco.id] = os.clock() + Geral.RENASCE_BONECO
+	danos[monstro.id] = 0
+	derrubados[monstro.id] = os.clock() + Geral.RENASCE_MONSTRO
 end
 
 --- Resolve um golpe. Retorna se algo foi atingido.
@@ -175,38 +175,38 @@ local function golpear(player: Player, automatico: boolean): boolean
 	end
 
 	local dano = Progresso.dano(player)
-	local boneco = if automatico
+	local monstro = if automatico
 		then melhorAoAlcance(lista, dano)
 		else maisProximo(lista, raiz.Position)
 
-	if not boneco then
+	if not monstro then
 		return false
 	end
 
-	local exigido = Bonecos.danoExigido(boneco.zona, boneco.indiceTier)
+	local exigido = Monstros.danoExigido(monstro.zona, monstro.indiceTier)
 	local arranhou = dano < exigido
 	if arranhou then
-		dano *= Bonecos.PENALIDADE_DANO_BAIXO
+		dano *= Monstros.PENALIDADE_DANO_BAIXO
 	end
 
-	local danos, quebrados = estadoDe(player)
-	local vida = Bonecos.vidaDe(boneco.zona, boneco.indiceTier)
-	local acumulado = math.min((danos[boneco.id] or 0) + dano, vida)
-	danos[boneco.id] = acumulado
+	local danos, derrubados = estadoDe(player)
+	local vida = Monstros.vidaDe(monstro.zona, monstro.indiceTier)
+	local acumulado = math.min((danos[monstro.id] or 0) + dano, vida)
+	danos[monstro.id] = acumulado
 
 	local caiu = acumulado >= vida
 	if caiu then
-		quebrar(player, boneco, danos, quebrados)
+		derrubar(player, monstro, danos, derrubados)
 	else
-		revidar(player, boneco)
+		contraAtacar(player, monstro)
 	end
 
 	remoteGolpe:FireClient(player, {
-		id = boneco.id,
+		id = monstro.id,
 		dano = dano,
 		vida = vida,
 		restante = math.max(vida - acumulado, 0),
-		quebrou = caiu,
+		morreu = caiu,
 		arranhou = arranhou,
 		automatico = automatico,
 	})
@@ -217,8 +217,8 @@ end
 function Combate.iniciar(servicos)
 	Progresso = servicos.Progresso
 
-	for _, boneco in servicos.Mundo.bonecos do
-		bonecos[boneco.id] = boneco
+	for _, monstro in servicos.Mundo.monstros do
+		monstros[monstro.id] = monstro
 	end
 
 	local remoteBater = Remotes.obter("Bater")

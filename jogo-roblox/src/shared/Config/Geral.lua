@@ -6,7 +6,7 @@
 ]]
 
 return {
-	-- Combate. Nada rende parado: Força só vem de golpe em boneco.
+	-- Combate. Nada rende parado: Força só vem de matar monstro.
 	DANO_BASE = 5,
 	COOLDOWN_GOLPE = 0.35,
 	ALCANCE_GOLPE = 15,
@@ -16,8 +16,8 @@ return {
 	-- irrelevante. Não vale para chefe nem para parkour.
 	FATOR_AUTO = 0.6,
 
-	-- Quanto tempo um boneco quebrado fica de pé de novo (por jogador).
-	RENASCE_BONECO = 1.2,
+	-- Quanto tempo um monstro morto leva para voltar (por jogador).
+	RENASCE_MONSTRO = 1.2,
 
 	-- Persistência.
 	INTERVALO_AUTOSAVE = 90,

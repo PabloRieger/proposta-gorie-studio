@@ -25,7 +25,7 @@
 	a Loja existe.
 
 	Faixas em uso: 10 avisos · 20 placar · 25 ações · 26 golpe · 30 loja
-	                40 bonecos · 50 barreiras · 60 entrada · 70 pedestais
+	                40 monstros · 50 barreiras · 60 entrada · 70 pedestais
 ]]
 
 local Players = game:GetService("Players")

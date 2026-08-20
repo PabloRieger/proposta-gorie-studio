@@ -13,8 +13,9 @@ do lugar certo.
 | Quero mudar | Arquivo |
 |---|---|
 | Dano base, cooldown do golpe, alcance, velocidade, autosave | `src/shared/Config/Geral.lua` |
-| Fases: porteira de Força, força dos bonecos, cor, posição no mapa | `src/shared/Config/Zonas.lua` |
-| Os 4 tiers de boneco: vida, recompensa, dano exigido, revide | `src/shared/Config/Bonecos.lua` |
+| Fases: porteira de Força, força dos monstros, cor, posição no mapa | `src/shared/Config/Zonas.lua` |
+| Os 4 tiers de dificuldade e as receitas de corpo | `src/shared/Config/Monstros.lua` |
+| Nome, silhueta e paleta das 40 espécies · trocar por modelo pronto | `src/shared/Config/Bestiario.lua` |
 | Títulos e multiplicadores por Força, dentro de uma vida | `src/shared/Config/Ranks.lua` |
 | Escada de evolução: requisito, multiplicador, cor da aura | `src/shared/Config/Evolucoes.lua` |
 | O que a loja vende, preços e curva de preço | `src/shared/Config/Melhorias.lua` |
@@ -23,10 +24,10 @@ do lugar certo.
 
 | Quero mudar | Arquivo |
 |---|---|
-| Como o golpe resolve alvo, dano, quebra e revide | `Combate.lua` |
+| Como o golpe resolve alvo, dano, morte e contra-ataque | `Combate.lua` |
 | Fórmula de dano, multiplicadores, o que replica para a tela | `Progresso.lua` |
 | Salvar, carregar, trava de sessão, o que sobrevive à evolução | `Dados.lua` |
-| Geometria do mundo, bonecos, barreiras, placas, iluminação | `Mundo.lua` |
+| Geometria do mundo, monstros, barreiras, placas, iluminação | `Mundo.lua` |
 | Tamanho, aura, velocidade e salto do personagem | `Personagem.lua` |
 | Validação de compra | `Loja.lua` |
 | O que acontece ao evoluir | `Evolucao.lua` |
@@ -39,7 +40,7 @@ do lugar certo.
 | Botões de Loja e Evoluir | `Acoes.lua` |
 | Botão BATER, AUTO, rótulo da zona, números de ganho | `Golpe.lua` |
 | Painel de compras | `Loja.lua` |
-| Rótulo, barra de vida e quebra dos bonecos | `Bonecos.lua` |
+| Rótulo, barra de vida, morte e animação dos monstros | `Monstros.lua` |
 | Avisos do topo | `Notificacoes.lua` |
 | Liberação visual das barreiras | `Barreiras.lua` |
 | Clique, toque e tecla de golpe | `Entrada.lua` |
@@ -98,12 +99,16 @@ Eventos.sinal("ChefeDerrotado"):Connect(function(player, chefe) end)
    número dentro de um serviço, ele estava no arquivo errado.
 2. **O servidor decide, o cliente pede.** Alvo, dano, preço e saldo são sempre
    recalculados no servidor. O cliente manda "bati" e "quero comprar isto".
-3. **Estado do jogador vive em atributos do Player.** O cliente nunca guarda
+3. **Arte é opcional e substituível.** Toda espécie aceita `modelo = "Nome"`,
+   procurado em `ReplicatedStorage/Modelos`. Achou, usa; não achou, monta o
+   corpo procedural. Trocar arte nunca exige mexer em código, e nunca bloqueia
+   o desenvolvimento.
+4. **Estado do jogador vive em atributos do Player.** O cliente nunca guarda
    cópia — por isso a tela não tem como discordar do servidor.
-4. **Força nunca alimenta a própria fórmula de ganho.** Ela é placar e porteira.
+5. **Força nunca alimenta a própria fórmula de ganho.** Ela é placar e porteira.
    O poder vem de equipamento e evolução, que são finitos. Ignorar isso já
    resolveu o jogo inteiro em 14 minutos uma vez.
-5. **Pergunta é chamada direta; aviso é sinal.** Não transforme "quanto o
+6. **Pergunta é chamada direta; aviso é sinal.** Não transforme "quanto o
    jogador tem" em evento.
 
 ---
