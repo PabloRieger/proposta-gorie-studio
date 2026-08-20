@@ -9,9 +9,27 @@ Projeto completo e jogável: mapa, interface, persistência e balanceamento.
 
 ## Rodando pela primeira vez
 
-Você precisa do **Roblox Studio** e do **Rojo**, que sincroniza os arquivos
-deste repositório com o Studio (assim o código fica em `.lua` versionável, e
-não preso dentro de um arquivo de lugar binário).
+Há dois caminhos. Comece pelo A se você só quer ver o jogo rodando.
+
+### A. Arquivo de lugar pronto (sem instalar nada além do Studio)
+
+```bash
+cd jogo-roblox
+python3 ferramentas/gerar-place.py     # gera EvolucaoLendaria.rbxlx
+```
+
+Abra o `.rbxlx` gerado com dois cliques (ou `File → Open from File` no Studio)
+e aperte **Play**.
+
+O arquivo é um retrato do código no momento em que foi gerado: ele **não**
+acompanha edições em `src/`. Rode o script de novo depois de mexer no código,
+ou use o caminho B para desenvolver. Por isso ele fica fora do versionamento —
+um `.rbxlx` desatualizado no repositório engana mais do que ajuda.
+
+### B. Rojo (fluxo de desenvolvimento)
+
+O **Rojo** sincroniza os arquivos deste repositório com o Studio em tempo real:
+você salva o `.lua` no editor e o Studio recebe na hora.
 
 ```bash
 # 1. Instale a cadeia de ferramentas (rojo, selene, stylua)
@@ -84,6 +102,9 @@ src/
     ├── Barreiras.lua        libera as zonas conquistadas
     ├── Entrada.lua          clique/toque/tecla de treino
     └── Notificacoes.lua     avisos de topo
+
+ferramentas/
+└── gerar-place.py           monta um .rbxlx a partir de src/, sem Rojo
 ```
 
 ### Duas decisões que valem explicar
