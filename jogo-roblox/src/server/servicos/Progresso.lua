@@ -15,6 +15,7 @@ local Config = Compartilhado.Config
 local Formato = Compartilhado.Formato
 local Remotes = Compartilhado.Remotes
 
+local Armas = Config.Armas
 local Melhorias = Config.Melhorias
 
 local Progresso = { ordem = 20 }
@@ -122,9 +123,64 @@ function Progresso.dano(player: Player): number
 		* Progresso.bonusMascotes(player)
 end
 
---- Passo 2. Sem espada equipada, o multiplicador é o punho nu.
-function Progresso.bonusEspada(_player: Player): number
-	return 1
+--[[
+	Equipamento em uso. Sem nada equipado, devolve a peça inicial — assim
+	ninguém precisa tratar nil, e o jogador novo já entra com punhos e roupa.
+]]
+function Progresso.equipado(player: Player, tipo: string)
+	local perfil = perfis[player]
+	local lista = if tipo == "espada" then Armas.espadas else Armas.armaduras
+
+	local id = perfil and perfil.equipado and perfil.equipado[tipo]
+	local item = id and Armas.porId[id]
+
+	-- Item que não existe mais na config (renomeado, removido) cai no inicial
+	-- em vez de derrubar o servidor.
+	return item or Armas.inicial(lista)
+end
+
+function Progresso.bonusEspada(player: Player): number
+	return Progresso.equipado(player, "espada").dano or 1
+end
+
+--- Fatia do contra-ataque que a armadura come (0 a 0.8).
+function Progresso.reducaoArmadura(player: Player): number
+	return Progresso.equipado(player, "armadura").reducao or 0
+end
+
+--- Origem do item no inventário: "comprado" some ao evoluir, "bau" fica.
+function Progresso.possui(player: Player, id: string): boolean
+	local perfil = perfis[player]
+	return perfil ~= nil and perfil.inventario[id] ~= nil
+end
+
+function Progresso.adicionarItem(player: Player, id: string, origem: string)
+	local perfil = perfis[player]
+	if not perfil then
+		return
+	end
+
+	perfil.inventario[id] = origem
+	Progresso.sincronizar(player)
+	Progresso.enviarEstado(player)
+end
+
+--- Equipa se o jogador realmente tem o item. Retorna se equipou.
+function Progresso.equipar(player: Player, id: string): boolean
+	local perfil = perfis[player]
+	local item = Armas.porId[id]
+
+	if not perfil or not item then
+		return false
+	end
+	if not item.inicial and not perfil.inventario[id] then
+		return false
+	end
+
+	perfil.equipado[Armas.tipoPorId[id]] = id
+	Progresso.sincronizar(player)
+	Progresso.enviarEstado(player)
+	return true
 end
 
 --- Passo 5.
@@ -149,6 +205,8 @@ function Progresso.enviarEstado(player: Player)
 
 	remoteEstado:FireClient(player, {
 		melhorias = perfil.melhorias,
+		inventario = perfil.inventario,
+		equipado = perfil.equipado,
 		tempoJogado = perfil.tempoJogado,
 	})
 end
@@ -170,6 +228,9 @@ function Progresso.sincronizar(player: Player)
 	definir(player, "Moedas", perfil.moedas)
 	definir(player, "Reliquias", perfil.reliquias)
 	definir(player, "Dano", Progresso.dano(player))
+	definir(player, "EspadaNome", Progresso.equipado(player, "espada").nome)
+	definir(player, "ArmaduraNome", Progresso.equipado(player, "armadura").nome)
+	definir(player, "Reducao", Progresso.reducaoArmadura(player))
 	definir(player, "Evolucao", perfil.evolucao)
 	definir(player, "AutoLigado", perfil.autoLigado == true)
 	definir(player, "RankIndice", indiceRank)

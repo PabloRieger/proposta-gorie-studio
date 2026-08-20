@@ -70,9 +70,12 @@ No Studio:
    personagem crescer.
 4. **Avance de fase** — quem destrava a próxima é a Força. A barreira abre
    sozinha ao atingir o requisito.
-5. **Compre melhorias** — com Moedas, na Loja. Elas **não** se perdem ao evoluir.
-6. **Evolua** — no Altar do hub. Zera a Força, dá multiplicador permanente,
-   título e uma aura nova.
+5. **Compre equipamento** — espada (quanto você tira) e armadura (quanto tempo
+   fica de pé) são perguntas diferentes de propósito, e o monstro tier 3 cobra
+   as duas. Ambas ficam visíveis no personagem.
+6. **Evolua** — no Altar do hub. Zera a Força e **o equipamento comprado**, mas
+   mantém moedas, melhorias e o que veio de baú. É o que faz a loja continuar
+   importando em todas as vidas em vez de virar compra única.
 
 ---
 
@@ -87,7 +90,8 @@ src/
 │   │   ├── Zonas.lua        as fases + geometria do mapa
 │   │   ├── Monstros.lua     os 4 tiers e as receitas de corpo
 │   │   ├── Bestiario.lua    as 40 espécies (nome, silhueta, paleta)
-│   │   ├── Melhorias.lua    loja, preços e bônus
+│   │   ├── Armas.lua        espadas e armaduras
+│   │   ├── Melhorias.lua    melhorias por nível
 │   │   └── Evolucoes.lua    escada de rebirth
 │   ├── Formato.lua          "1.23M" a partir de 1234567
 │   ├── Remotes.lua          canais cliente↔servidor
@@ -100,8 +104,8 @@ src/
 │       ├── Progresso.lua    Força/Moedas/Evolução, dano, multiplicadores
 │       ├── Mundo.lua        constrói mapa e monstros a partir da config
 │       ├── Combate.lua      resolve golpe, vida por jogador, recompensa
-│       ├── Personagem.lua   tamanho, aura, velocidade e salto
-│       ├── Loja.lua         validação de compra
+│       ├── Personagem.lua   tamanho, aura, velocidade, salto, equipamento
+│       ├── Loja.lua         validação de compra e de equipar
 │       └── Evolucao.lua     rebirth
 │
 └── client/

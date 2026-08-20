@@ -16,6 +16,11 @@
 	(Zonas[i].monstro). O formato da escada é igual em todas as fases, então
 	rebalancear uma fase inteira é mexer em três números.
 
+	`ataque` é PORCENTAGEM da vida máxima do jogador, não dano fixo: assim um
+	monstro do Vazio machuca tanto quanto um do Vilarejo em termos relativos, e
+	a armadura continua fazendo diferença na última fase. A redução da armadura
+	é descontada daqui.
+
 	`exigeDano` é lido contra a vida-base da zona: exigeDano = 6 significa
 	"cada golpe seu precisa tirar 6x a vida do monstro mais fraco daqui".
 	Abaixo disso o golpe ainda entra, mas arranhando.

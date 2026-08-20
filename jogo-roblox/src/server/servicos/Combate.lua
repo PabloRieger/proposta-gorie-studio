@@ -134,18 +134,25 @@ local function melhorAoAlcance(lista, dano: number)
 	return escolhido
 end
 
+--[[
+	O monstro revida. O ataque é porcentagem da vida máxima, não valor fixo:
+	assim ele machuca o mesmo tanto em qualquer fase, e a armadura continua
+	relevante na última.
+]]
 local function contraAtacar(player: Player, monstro)
-	local ataque = Monstros.tiers[monstro.indiceTier].ataque
-	if ataque <= 0 then
+	local percentual = Monstros.tiers[monstro.indiceTier].ataque
+	if percentual <= 0 then
 		return
 	end
 
 	local personagem = player.Character
 	local humano = personagem and personagem:FindFirstChildOfClass("Humanoid")
-	if humano and humano.Health > 0 then
-		-- A armadura entra no passo 2 e vai reduzir isto.
-		humano:TakeDamage(ataque)
+	if not humano or humano.Health <= 0 then
+		return
 	end
+
+	local bruto = humano.MaxHealth * (percentual / 100)
+	humano:TakeDamage(bruto * (1 - Progresso.reducaoArmadura(player)))
 end
 
 local function derrubar(player: Player, monstro, danos, derrubados)

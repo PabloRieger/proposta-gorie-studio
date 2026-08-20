@@ -18,7 +18,8 @@ do lugar certo.
 | Nome, silhueta e paleta das 40 espécies · trocar por modelo pronto | `src/shared/Config/Bestiario.lua` |
 | Títulos e multiplicadores por Força, dentro de uma vida | `src/shared/Config/Ranks.lua` |
 | Escada de evolução: requisito, multiplicador, cor da aura | `src/shared/Config/Evolucoes.lua` |
-| O que a loja vende, preços e curva de preço | `src/shared/Config/Melhorias.lua` |
+| Espadas e armaduras: dano, redução, preço, visual | `src/shared/Config/Armas.lua` |
+| Melhorias por nível, preços e curva de preço | `src/shared/Config/Melhorias.lua` |
 
 ### Regras do jogo (servidor — `src/server/servicos/`)
 
@@ -28,9 +29,9 @@ do lugar certo.
 | Fórmula de dano, multiplicadores, o que replica para a tela | `Progresso.lua` |
 | Salvar, carregar, trava de sessão, o que sobrevive à evolução | `Dados.lua` |
 | Geometria do mundo, monstros, barreiras, placas, iluminação | `Mundo.lua` |
-| Tamanho, aura, velocidade e salto do personagem | `Personagem.lua` |
-| Validação de compra | `Loja.lua` |
-| O que acontece ao evoluir | `Evolucao.lua` |
+| Tamanho, aura, velocidade, salto e equipamento visível | `Personagem.lua` |
+| Validação de compra e de equipar | `Loja.lua` |
+| O que acontece ao evoluir e **o que reseta** | `Evolucao.lua` |
 
 ### Interface (cliente — `src/client/paineis/`)
 
@@ -39,7 +40,7 @@ do lugar certo.
 | Cartão de números e barra de rank | `Placar.lua` |
 | Botões de Loja e Evoluir | `Acoes.lua` |
 | Botão BATER, AUTO, rótulo da zona, números de ganho | `Golpe.lua` |
-| Painel de compras | `Loja.lua` |
+| Painel de compras (espadas, armaduras, melhorias) | `Loja.lua` |
 | Rótulo, barra de vida, morte e animação dos monstros | `Monstros.lua` |
 | Avisos do topo | `Notificacoes.lua` |
 | Liberação visual das barreiras | `Barreiras.lua` |
@@ -105,10 +106,13 @@ Eventos.sinal("ChefeDerrotado"):Connect(function(player, chefe) end)
    o desenvolvimento.
 4. **Estado do jogador vive em atributos do Player.** O cliente nunca guarda
    cópia — por isso a tela não tem como discordar do servidor.
-5. **Força nunca alimenta a própria fórmula de ganho.** Ela é placar e porteira.
+5. **Id de item é para sempre.** Ele vai para o save do jogador. Por isso
+   espadas usam `esp_*` e armaduras `arm_*`, e o índice em `Armas.lua` recusa
+   subir com id repetido — uma colisão entrega a peça errada em silêncio.
+6. **Força nunca alimenta a própria fórmula de ganho.** Ela é placar e porteira.
    O poder vem de equipamento e evolução, que são finitos. Ignorar isso já
    resolveu o jogo inteiro em 14 minutos uma vez.
-6. **Pergunta é chamada direta; aviso é sinal.** Não transforme "quanto o
+7. **Pergunta é chamada direta; aviso é sinal.** Não transforme "quanto o
    jogador tem" em evento.
 
 ---

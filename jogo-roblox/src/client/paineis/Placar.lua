@@ -50,9 +50,9 @@ local function atualizar()
 	w.moedas.Text = Formato.abreviar(Estado.ler("Moedas", 0))
 	w.reliquias.Text = Formato.abreviar(Estado.ler("Reliquias", 0)) .. " relíquias"
 	w.rodape.Text = string.format(
-		"%s de dano  ·  recompensa x%.2f",
+		"%s de dano  ·  %s",
 		Formato.abreviar(Estado.ler("Dano", 0)),
-		Estado.ler("MultForca", 1)
+		Estado.ler("EspadaNome", "Punhos")
 	)
 
 	local progresso, legenda = progressoDoRank()
@@ -155,7 +155,7 @@ function Placar.montar(ctx)
 		"Moedas",
 		"Reliquias",
 		"Dano",
-		"MultForca",
+		"EspadaNome",
 		"RankIndice",
 		"RankNome",
 		"RankCor",

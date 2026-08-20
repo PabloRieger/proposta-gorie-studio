@@ -13,6 +13,8 @@ local NOMES = {
 	"Bater",
 	"AlternarAuto",
 	"ComprarMelhoria",
+	"ComprarItem",
+	"EquiparItem",
 	"PedirEvolucao",
 	-- servidor -> cliente
 	"GolpeResolvido",
