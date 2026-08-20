@@ -92,24 +92,58 @@ local function chaveDe(player: Player): string
 	return "jogador_" .. player.UserId
 end
 
+--[[
+	`GetDataStore` devolve um objeto mesmo sem acesso às APIs — o erro só
+	aparece na primeira chamada de verdade. É o caso de um lugar aberto de
+	arquivo e nunca publicado, ou do Studio sem "Enable Studio Access to API
+	Services". Insistir nesses erros não adianta: reconhecemos e caímos para
+	memória, em vez de recusar a entrada de todo mundo.
+]]
+local function semAcessoAsApis(erro): boolean
+	local texto = string.lower(tostring(erro))
+	for _, marca in { "api services", "not allowed", "403", "publish" } do
+		if string.find(texto, marca, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local function desligarLoja(motivo: string)
+	if loja then
+		loja = nil
+		warn(
+			"[Dados] DataStore indisponível ("
+				.. motivo
+				.. "). O progresso vale só enquanto o servidor estiver de pé.\n"
+				.. "  Para salvar de verdade: publique o lugar (File > Publish to Roblox As...)\n"
+				.. "  e ligue Game Settings > Security > Enable Studio Access to API Services."
+		)
+	end
+end
+
+--- Retorna (deuCerto, resultado, bloqueadoPorAcesso).
 local function tentar(funcao)
 	local ultimoErro
 	for tentativa = 1, TENTATIVAS do
 		local ok, resultado = pcall(funcao)
 		if ok then
-			return true, resultado
+			return true, resultado, false
 		end
 		ultimoErro = resultado
+		if semAcessoAsApis(ultimoErro) then
+			return false, nil, true
+		end
 		task.wait(0.25 * 2 ^ tentativa)
 	end
 	warn("[Dados] desisti após " .. TENTATIVAS .. " tentativas: " .. tostring(ultimoErro))
-	return false, nil
+	return false, nil, false
 end
 
 --- Toma posse da sessão do jogador. Retorna nil se outro servidor ainda a segura.
 local function reivindicar(chave: string)
 	for _ = 1, RODADAS_REIVINDICACAO do
-		local ok, dados = tentar(function()
+		local ok, dados, bloqueado = tentar(function()
 			return (loja :: DataStore):UpdateAsync(chave, function(antigo)
 				local perfil = antigo or copiar(PADRAO)
 				local sessao = perfil.sessao
@@ -127,14 +161,18 @@ local function reivindicar(chave: string)
 			end)
 		end)
 
+		if bloqueado then
+			return nil, true
+		end
+
 		if ok and dados then
-			return dados
+			return dados, false
 		end
 
 		task.wait(3)
 	end
 
-	return nil
+	return nil, false
 end
 
 --- Carrega (ou cria) o perfil. Retorna nil quando não foi seguro carregar.
@@ -142,11 +180,20 @@ function DataService.carregar(player: Player)
 	local dados
 
 	if loja then
-		dados = reivindicar(chaveDe(player))
-		if not dados then
+		local carregado, bloqueado = reivindicar(chaveDe(player))
+
+		if bloqueado then
+			desligarLoja("o lugar não tem acesso às APIs")
+		elseif not carregado then
+			-- Falha transitória: recusar a entrada é melhor do que começar do
+			-- zero e salvar por cima do progresso que não conseguimos ler.
 			return nil
+		else
+			dados = carregado
 		end
-	else
+	end
+
+	if not loja then
 		dados = memoria[player.UserId] or copiar(PADRAO)
 	end
 
@@ -196,6 +243,17 @@ function DataService.descarregar(player: Player)
 end
 
 function DataService.iniciar(intervaloAutosave: number)
+	-- Uma chamada barata só para descobrir o acesso agora, e não no meio do
+	-- primeiro PlayerAdded.
+	if loja then
+		local _, _, bloqueado = tentar(function()
+			return (loja :: DataStore):GetAsync("__sonda_de_acesso")
+		end)
+		if bloqueado then
+			desligarLoja("sonda de acesso recusada")
+		end
+	end
+
 	task.spawn(function()
 		while true do
 			task.wait(intervaloAutosave)
