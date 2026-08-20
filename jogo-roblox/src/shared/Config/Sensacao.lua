@@ -6,9 +6,16 @@
 	Mexa à vontade e teste; é o arquivo mais seguro do projeto.
 
 	SOBRE OS SONS: são caminhos `rbxasset://`, que vêm junto com o Studio — não
-	dependem de upload nem de internet. Se algum não tocar na sua versão, troque
-	a linha por um id da biblioteca (`rbxassetid://NUMERO`). Som que falha não
-	quebra nada: simplesmente não sai.
+	dependem de upload nem de internet.
+
+	Os nomes foram CONFERIDOS contra a lista real de sons clássicos do Roblox.
+	A primeira versão deste arquivo usava `.wav` em cinco deles e um sétimo que
+	nem existe; todos falhavam em silêncio, porque som que não carrega não dá
+	erro, só não toca. Se for acrescentar som, confira o nome antes — este é um
+	daqueles casos em que "compila" não quer dizer absolutamente nada.
+
+	Outros disponíveis: swoosh, bass, collide, snap, splat, button, switch,
+	victory, flashbulb, Kerplunk, uuhhh. Todos .mp3, todos em rbxasset://sounds/.
 ]]
 
 return {
@@ -50,12 +57,12 @@ return {
 
 	-- --------------------------------------------------------------- sons
 	SONS = {
-		golpe = { id = "rbxasset://sounds/swordslash.wav", volume = 0.35, tom = 1 },
-		impacto = { id = "rbxasset://sounds/snap.wav", volume = 0.55, tom = 0.9 },
-		critico = { id = "rbxasset://sounds/swordlunge.wav", volume = 0.7, tom = 1 },
-		arranhao = { id = "rbxasset://sounds/clickfast.wav", volume = 0.3, tom = 0.7 },
-		morte = { id = "rbxasset://sounds/impact_explosion_03.mp3", volume = 0.45, tom = 1.35 },
-		compra = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.5, tom = 1 },
+		golpe = { id = "rbxasset://sounds/swordslash.mp3", volume = 0.35, tom = 1 },
+		impacto = { id = "rbxasset://sounds/hit.mp3", volume = 0.55, tom = 0.9 },
+		critico = { id = "rbxasset://sounds/swordlunge.mp3", volume = 0.7, tom = 1 },
+		arranhao = { id = "rbxasset://sounds/clickfast.mp3", volume = 0.3, tom = 0.7 },
+		morte = { id = "rbxasset://sounds/splat.mp3", volume = 0.5, tom = 1.15 },
+		compra = { id = "rbxasset://sounds/electronicpingshort.mp3", volume = 0.5, tom = 1 },
 	},
 
 	-- Variação aleatória de tom por golpe. Sem isto, o mesmo som repetido
